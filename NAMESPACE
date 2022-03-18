@@ -1,0 +1,5 @@
+export('mice.impute.truescore')
+#exportPattern("^[[:alpha:]]+")
+
+importFrom('MCMCpack','riwish')
+importFrom('MASS','mvrnorm')

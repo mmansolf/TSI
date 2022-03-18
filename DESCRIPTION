@@ -1,0 +1,15 @@
+Package: TSI
+Type: Package
+Title: Custom mice Functions for True Score Imputation
+Version: 0.1.0
+Author: Maxwell Mansolf
+Maintainer: Maxwell Mansolf <maxwell.mansolf@northwestern.edu>
+Description: Performs true score imputation (TSI) for psychometric variables with
+    measurement error quantified by a reliability estimate (classical test theory)
+    or, more generally, a standard error estimate for each score. Piggybacks on
+    the mice package (van Buuren & Goothuis-Oudshoorn, 2011) by implementing TSI
+    as a custom imputation function, allowing TSI to be combined with multiple
+    imputation for missing data.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
