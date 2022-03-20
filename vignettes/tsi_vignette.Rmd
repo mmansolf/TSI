@@ -1,8 +1,8 @@
 ---
-title: "TSI Examples"
+title: "True Score Imputation Examples"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{tsi_vignette}
+  %\VignetteIndexEntry{True Score Imputation Examples}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -22,17 +22,8 @@ library(TSI)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Load Functions
-
-First, load the necessary functions. You'll need to change the file location to where it lives on your computer, of course:
-
-```{r, echo=F, message=F, warning=F}
-source("C:/Users/Max/Dropbox/ECHO/FSSE/Ex1/mice_guo_code_ctt_MEdiff_clean_ex1.R")
-set.seed(1)
-```
-
 ## Simulate data
-Now, let's simulate some data! Here I'm simulating two samples of true score `x`, with mean difference equal to `d`:
+First, let's simulate some data to demonstrate true score imputation for classical test theory! Here I'm simulating two samples of true score `x`, with mean difference equal to `d`:
 
 ```{r}
 #######################

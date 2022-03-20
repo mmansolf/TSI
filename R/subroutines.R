@@ -211,3 +211,45 @@ the observed data is negative."))
   }
   return(imputedX)
 }
+
+#main function \\
+MIEC <- function(maindata,calibdata,NCALIB,NSAMPLE,M,N,K,S,CTT) {
+  MIimputedXbasedoncalib=c()
+  multipleImputedX=c()
+  twostageMIimputedX=c()
+  P=K+S
+  count = 0
+  while (count < M) {
+    #Step-1: draw parameters by regressing X on W based on
+    #measurement error model
+    memParam=PrepareMemParam(calibdata,maindata[,1],NCALIB)
+    #Step-2: draw parameters by regressing (Y, Z) on W based on main
+    #interested "disease" model
+    dmParam=generateRandomMultivarRegreParam(maindata,NSAMPLE,P)
+    #Step-4: creating sweeping matrix on W by using parameters
+    #obtained from step 1-3 and filling estimated covariance
+    #parameter between U and X given W
+    sweepMatrixonW=createMatrixonW(memParam, dmParam, P)
+    #Step-5: calculate parameters of the imputation model for X
+    #given (W,Y,Z) by the sweep operator
+    impmodelParam = lapply(sweepMatrixonW,sweep)
+    #Step-6: generate random draw for unknown X from its posterior
+    #distribution, given W and Y
+    varIndicator=length(impmodelParam[[1]])
+    if (impmodelParam[[1]][varIndicator] < 0){
+      impmodelParam[[1]][varIndicator] = 0
+    }
+    for (n in 1:N){
+      secondStageDrawX = generateMissingvalue(impmodelParam,
+                                              maindata)
+      twostageMIimputedX=cbind(twostageMIimputedX,
+                               secondStageDrawX)
+    }
+    count=count+1
+  }
+  #Output data with Y, Z, and multiply imputed X,
+  #where maindata[,P+1] = U(Y,Z)
+  twoStageMIimputeddata=twostageMIimputedX
+  # print(mean(twoStageMIimputeddata))
+  return(twoStageMIimputeddata)
+}

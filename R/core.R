@@ -1,46 +1,62 @@
-#main function \\
-MIEC <- function(maindata,calibdata,NCALIB,NSAMPLE,M,N,K,S,CTT) {
-  MIimputedXbasedoncalib=c()
-  multipleImputedX=c()
-  twostageMIimputedX=c()
-  P=K+S
-  count = 0
-  while (count < M) {
-    #Step-1: draw parameters by regressing X on W based on
-    #measurement error model
-    memParam=PrepareMemParam(calibdata,maindata[,1],NCALIB)
-    #Step-2: draw parameters by regressing (Y, Z) on W based on main
-    #interested "disease" model
-    dmParam=generateRandomMultivarRegreParam(maindata,NSAMPLE,P)
-    #Step-4: creating sweeping matrix on W by using parameters
-    #obtained from step 1-3 and filling estimated covariance
-    #parameter between U and X given W
-    sweepMatrixonW=createMatrixonW(memParam, dmParam, P)
-    #Step-5: calculate parameters of the imputation model for X
-    #given (W,Y,Z) by the sweep operator
-    impmodelParam = lapply(sweepMatrixonW,sweep)
-    #Step-6: generate random draw for unknown X from its posterior
-    #distribution, given W and Y
-    varIndicator=length(impmodelParam[[1]])
-    if (impmodelParam[[1]][varIndicator] < 0){
-      impmodelParam[[1]][varIndicator] = 0
-    }
-    for (n in 1:N){
-      secondStageDrawX = generateMissingvalue(impmodelParam,
-                                              maindata)
-      twostageMIimputedX=cbind(twostageMIimputedX,
-                               secondStageDrawX)
-    }
-    count=count+1
-  }
-  #Output data with Y, Z, and multiply imputed X,
-  #where maindata[,P+1] = U(Y,Z)
-  twoStageMIimputeddata=twostageMIimputedX
-  # print(mean(twoStageMIimputeddata))
-  return(twoStageMIimputeddata)
-}
-
-# MICE FUNCTION #
+#' True Score Imputation with mice
+#'
+#' This custom imputation function is used with the \code{mice}
+#' package by setting method='truescore' for each variable imputed using
+#' true score imputation, which will call this custom imputation function
+#' \code{mice.impute.truescore}. Although possible, this function is not
+#' meant to be run on its own; see documentation for other \code{mice}
+#' imputation files, e.g., \code{\link[mice]{mice.impute.pmm}}, for details
+#' on this usage. Example usage through the mice package is provided in
+#' Examples below.
+#'
+#' @inherit mice::mice.impute.pmm return params
+#'
+#' @param calibration A list of calibration information used for true score
+#' imputation. See below for details.
+#'
+#' @section Passing Calibration Information to \code{mice}:
+#'
+#' The \code{calibration} parameter is passed to the \code{mice} function
+#' using the \code{blots} input. For each imputed true score, provide the
+#' \code{calibration} information as a named list. The following elements
+#' are required, in any order:
+#'
+#' \describe{
+#'   \item{\code{OSNAME}}{Name of the variable in the data set containing the
+#'   observed scores used for true score imputation}
+#'   \item{\code{scoreType}}{Type of score provided. Current options are
+#'   \code{'CTT'}, corresponding to the classical test theory model of
+#'   reliability; \code{'EAP'}, corresponding to expected a posteriori
+#'   scoring in item response theory; and \code{'ML'}, corresponding to
+#'   maximum likelihood scoring in item response theory. Each
+#'   \code{scoreType} requires specific other elements to be provided
+#'   in \code{calibration} data; see below for these conditional elements.}
+#'   \item{\code{mean}}{The mean of the score metric from calibration. For example,
+#'   T scores are calibrated to a mean of 50, so if T scores are used,
+#'   \code{mean} should be set to \code{50}.}
+#'   \item{\code{varTS}}{The variance of the score metric from calibration. For
+#'   example, T scores are calibrated to a standard deviation of 10, so
+#'   if T scores are used, \code{varTS} should be set to \code{100}.}
+#' }
+#'
+#' In addition, each \code{scoreType} requires specific other elements
+#' to be provided in \code{calibration} data:
+#'
+#' \describe{
+#'   \item{\code{SENAME}}{Required if \code{scoreType == 'EAP'} or
+#'   \code{scoreType == 'ML'}. Name of the variable in the data set
+#'   containing the standard error estimates of the observed scores
+#'   provided in \code{OSNAME}.}
+#'   \item{\code{reliability}}{Required if \code{scoreType == 'CTT'}.
+#'   Reliability estimate denoting the ratio of true score to
+#'   observed score variance, as estimated from calibration.}
+#' }
+#'
+#' @section Specifying the Predictor Matrix:
+#' Coming soon!
+#'
+#' @examples
+#' Coming soon!
 mice.impute.truescore=function(y,ry,x,wy=NULL,
                                calibration=NULL,...){
   # print(head(cbind(y,x)))
