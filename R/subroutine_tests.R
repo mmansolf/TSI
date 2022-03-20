@@ -1,5 +1,4 @@
-install.packages('testthat')
-library(testthat)
+library(testthat,lib.loc="C:/Users/Max/Documents/R/win-library/4.0")
 source('R/subroutines.R')
 
 ###################
