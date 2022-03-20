@@ -1,4 +1,6 @@
-library(testthat,lib.loc="C:/Users/Max/Documents/R/win-library/4.0")
+library(testthat,
+        lib.loc=c("C:/Users/Max/Documents/R/win-library/4.0",
+                  "C:/Program Files/R/R-4.0.2/library"))
 source('R/subroutines.R')
 
 ###################
