@@ -1,4 +1,6 @@
+install.packages('testthat')
 library(testthat)
+source('R/subroutines.R')
 
 ###################
 # ALL SUBROUTINES #
