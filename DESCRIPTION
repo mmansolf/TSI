@@ -13,3 +13,7 @@ Description: Performs true score imputation (TSI) for psychometric variables wit
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

@@ -1,0 +1,218 @@
+---
+title: "TSI Examples"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{tsi_vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(TSI)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Functions
+
+First, load the necessary functions. You'll need to change the file location to where it lives on your computer, of course:
+
+```{r, echo=F, message=F, warning=F}
+source("C:/Users/Max/Dropbox/ECHO/FSSE/Ex1/mice_guo_code_ctt_MEdiff_clean_ex1.R")
+set.seed(1)
+```
+
+## Simulate data
+Now, let's simulate some data! Here I'm simulating two samples of true score `x`, with mean difference equal to `d`:
+
+```{r}
+#######################
+#SIMULATION PARAMETERS#
+n=10000 #sample size
+ratio=0.6 #ratio of true score variance to error variance; squared reliability coefficient
+d=0.5 #mean difference
+nimpute=10 #number of "posterior" draws of true score from modified conditional distribution of w
+meanX=1 #mean of true score
+meanW=1 #mean of observed score
+varX=1 #variance of true score
+varW=1 #variance of observed score
+```
+
+```{r}
+#################
+# SIMUALTE DATA #
+x1=rnorm(n,meanX,sqrt(varX))
+e1=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
+w1=((x1+e1)-meanX)/sqrt(varX+varX*(1-ratio)/ratio)*sqrt(varW)+meanW
+x2=rnorm(n,meanX+d*sqrt(varX),sqrt(varX))
+e2=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
+w2=((x2+e2)-meanX)/sqrt(varX+varX*(1-ratio)/ratio)*sqrt(varW)+meanW
+```
+
+# Compare true, uncorrected, & corrected mean differences
+
+The mean difference between the two groups on the `x` metric is `mean(x2)-mean(x1)` = `r mean(x2)-mean(x1)`, and on the w metric the same mean difference is `mean(w2)-mean(w1)` = `r mean(w2)-mean(w1)`, so we can see some bias.
+
+Let's try correcting for it! To do so, we can use the `'truescore'` imputation function from the functions we loaded earlier, but we need to specify some things when we do. The true score imputation method relies on parameters specific to the observed score variable `w` and the true score variable `x`, and we need to bring those in specifically to impute that variable. For this, we can us the `blocks` option in the `mice` package. Without futher ado, let's load that package:
+
+```{r, message=F, warning=F}
+library(mice)
+```
+
+Before imputing, notice that we don't actually have a variable `y` to related `x` to, only two groups. Let's create a dummy-coded variable, where `0` corresponds to the first group and `1` corresponds to the second group, to create a data set to work with:
+
+```{r}
+w=c(w1,w2)
+y=c(rep(0,n),rep(1,n))
+```
+
+Lastly, let's create a variable `x` to store our imputed values in, and put everything into a `data.frame` for imputation using mice. We don't know any true scores, so this is all `NA`:
+
+```{r}
+data=data.frame(w,y,x=NA)
+```
+
+I'll present the imputation code, then explain the pieces:
+
+```{r}
+mice.data=mice(data,m=nimpute,
+               blocks=list('x'),
+               method='truescore',
+               calibration=list(OSNAME='w',
+                                reliability=ratio,
+                                meanTS=meanX,
+                                meanOS=meanW,
+                                varTS=varX,
+                                varOS=varW),
+               printFlag=F)
+mice.data
+```
+
+True score imputation requires the following:
+
+* Each set of imputed variables must be specificed as a block using the `blocks` argument, which contains a list of vectors with variable names per block.
+* Each block must have a matching `method` listed under the `method` argument; here, we're only using true score imputation, so this is just `'truescore'`. 
+For more information on these inputs, see the documentation for the `mice` function at `?mice`. Lastly:
+* Calibration information, including reliability and the mean and variances of true and observed scores, must be specified in an additional argument named `calibration`. The elements of the list must be the following, in any order, and all must be named as follows:
+    + `OSNAME` (character vector): Name of the observed score variable in the data set.
+    + `reliability` (numeric scalar or vector with length equal to `nrow(data)`: An estimate of the reliability of the observed scores as measures of the true score. If a scalar is provided, the same reliability is assumed for all values of the observed score.
+    + `meanTS` and `varTS` (numeric scalars): Mean and variance of true scores, respectively. The analyst can select whichever metric makes the most sense to them, but typically the standard normal metric (`meanTS=0,varTS=1`) or the observed score metric (e.g., T-scores where `meanTS=50,varTS=10`) will be used for ease in interpretation.
+    + `meanOS` and `varOS` (numeric scalars): Mean and variance of observed scores, respectively, *in the calibration sample*. This information should ideally be obtained from calibration. If values from the data are used (e.g., `meanOS=mean(w),varOS=var(w)`), results may be biased or unstable.
+
+# Analyzing the imputed data
+
+Once data are generated using `mice`, the resulting `r class(mice.data)` object can be analyzed using multiple imputation techniques. Here, we can use the `lm.mids` function to predict `x` from `y`:
+
+```{r}
+pool(lm.mids(x~y,mice.data))
+```
+
+Comparing this result to that from using the observed score `w`:
+
+```{r}
+pool(lm.mids(w~y,mice.data))
+```
+
+We can see a distinct reduction in bias; our estimate of the mean difference using the observed `w` is `r round(pool(lm.mids(w~y,mice.data))$pooled[2,'estimate'],3)`, while using true score imputation yields an estimate of `r round(pool(lm.mids(x~y,mice.data))$pooled[2,'estimate'],3)`, which is very close to the true value of `r d`.
+
+## A more complicated example
+
+Because true score imputation can be used in the mice package, it can be used in tandem with conventional multiple imputation. To illustrate, I simulated two uncorrelated, normally-distributed variables, `x` and `m`, and used them to generate a new variable `y`:
+
+```{r}
+set.seed(1)
+x=rnorm(1000,0,1)
+m=rnorm(1000,0,1)
+y=1+0.4*x+0.6*m+rnorm(1000,0,1)
+```
+
+Thus, `y` is related to `m` and `w` by the equation `y=0.4x+0.6m+e`, where `e~N(0,1)`, in a prototypical multiple regression configuration.
+
+Next, I used calibrated item parameters from the NIH Toolbox emotion battery norming study to simulate item responses on the 4-item Perceived Stress Scale (PSS4) for each of `x` and `y`. I then scored these item responses using the same item parameters, yielding a set of T-scores and standard errors (SE's) for each record. These two quantities are provided routinely by the HealthMeasures scoring service.
+
+Lastly, I used a missing completely at random (MCAR) missing data model to set approximately 10% of the values of `m` and the T-score/SE pairs to missing. This simulates nonresponse that might also be expected in practice. This "amputation" was conducted separately for `m`, for the T-score/SE pairs for `x`, and for the T-score/SE pairs for `y`.
+
+Let's read in the simulated data,
+
+```{r}
+data=read.csv('C:/Users/Max/Dropbox/ECHO/FSSE/Ex1/tsi_example.csv')
+```
+
+and prepare for imputation by adding variables for the true scores:
+
+```{r}
+data$Tx=NA
+data$Ty=NA
+```
+
+Once again, I'll present the code, then explain what it does:
+
+```{r}
+mice.data=mice(data[,-c(3,4)],m=10,maxit=100,
+               method=c('pmm','truescore','truescore'),
+               blocks=list(obs=c('m','Fx','Fy'),Tx='Tx',Ty='Ty'),
+               blots=list(Tx=list(calibration=list(OSNAME='Fx',
+                                                   # SENAME='SE.Fx',
+                                                   reliability=mean(1-data$SE.Fx^2/100,na.rm=T),
+                                                   meanTS=0,
+                                                   meanOS=50,
+                                                   varTS=1,
+                                                   varOS=74.64159)),
+                          Ty=list(calibration=list(OSNAME='Fy',
+                                                   # SENAME="SE.Fx",
+                                                   reliability=mean(1-data$SE.Fy^2/100,na.rm=T),
+                                                   meanTS=0,
+                                                   meanOS=50,
+                                                   varTS=1,
+                                                   varOS=74.64159))),
+               predictorMatrix=matrix(c(1,1,1,1,1,
+                                        1,0,1,0,1,
+                                        0,1,1,1,0),3,5,byrow=T),
+               printFlag=F)
+mice.data
+```
+
+A few extra things to note:
+
+* In the function call, we remove the standard error columns (3 and 4) from the data. In theory, these could also be imputed, but note that a nonlinear imputation method would be necessary because standard error is curvilinearly related to latent variable level, on average.
+* The number of burn-in iterations was increased from 10 to 100, just to be a bit safer.
+* Three `blocks` are now needed: one for each true score and one for the observed variables (`m` and the two T-scores)
+* Similarly, separate `blots` are needed for the two true scores, with different inputs for each. A few things to note here:
+    + Different values for `OSNAME`, because each true score should be imputed based on a different T-score
+    + `reliability` is calculated as the average reliability across responses based on the T-score standard errors. I'm working on a way to allow imputation based on each score's standard error; I have it in the algorithm (you can see where I commented it out), I just haven't fully made it compatible with `mice`. 
+    + I set true score mean and variance to `0` and `1`, respectively, to reflect the data-generating model, but using `50` and `10`, respectively, would also be interpretable and valid, just on a different metric.
+    + The mean of the observed score was set to `50`, consistent with these being T-scores. To obtain the observed score variance from the calibration sample, I generated a large number (`200000`) of item responses using a standard normal latent trait, scored them, and calculated the variance of the resulting scores.
+* Lastly, the `predictorMatrix` argument must be specified in order to avoid using observed scores for `x` and `y` to predict true scores on `y` and `x`, respectively. By examining the `mice.data` object above, we can see that four elements are missing. Each row of this matrix corresponds to a block in `blocks`, and each column corresponds to a predictor, such that `Fy` and `Tx` are not used to predict `Tx`, and `Fx` and `Ty` are not used to predict `Ty`. If `predictorMatrix` is _not_ specified, `Fy` will be used to predict `Tx` and `Fx` will be used to predict `Ty`, leading to bias.
+
+# Analyzing the imputed data
+
+Once data are generated using `mice`, the resulting `r class(mice.data)` object can once again be analyzed using multiple imputation techniques. Here, we can use the `lm.mids` function to predict `y` from `x` and `m`. For reference, estimating this model using the true scores, with no missing data, yields:
+
+```{r}
+lm(y~x+m)
+```
+
+Using the observed T-scores yields:
+
+```{r}
+pool(lm.mids(Fy~Fx+m,mice.data))
+```
+
+Observe that the regression coefficient associated with `Fx`, the T-score for `x`, is between 0 and 1, because both T-scores are on the same metric; therefore, this estimate can be directly compared to that from the true, complete data above. In contrast, the `m` variable was not linearly transformed and therefore its coefficient *should* be multiplied by 10 because the SD of T-scores is 10, and attempting to place it back on the original metric by dividing by 10 yields `r round(pool(lm.mids(Fy~Fx+m,mice.data))$pooled[3,'estimate']*10,3)`. In both cases, the two regression coefficient estimates are biased.
+
+Finally, using true score imputation yields:
+
+```{r}
+pool(lm.mids(Ty~Tx+m,mice.data))
+```
+
+Bias has been reduced to almost zero!
