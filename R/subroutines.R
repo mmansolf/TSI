@@ -199,6 +199,7 @@ the observed data is negative."))
     for (i in 2:(nparam-1)){
       mux = mux + param[[iset]][i]*maindata[rows.iset,i-1]
     }
+
     #Generate X from its posterior distribution with mean mux
     #and variance sigmasqxx_wzy
     if(param[[iset]][nparam]<0) param[[iset]][nparam]=0.001 #eps!
