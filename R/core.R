@@ -31,12 +31,12 @@
 #'   maximum likelihood scoring in item response theory. Each
 #'   \code{scoreType} requires specific other elements to be provided
 #'   in \code{calibration} data; see below for these conditional elements.}
-#'   \item{\code{mean}}{The mean of the score metric from calibration. For example,
-#'   T scores are calibrated to a mean of 50, so if T scores are used,
-#'   \code{mean} should be set to \code{50}.}
-#'   \item{\code{varTS}}{The variance of the score metric from calibration. For
-#'   example, T scores are calibrated to a standard deviation of 10, so
-#'   if T scores are used, \code{varTS} should be set to \code{100}.}
+#'   \item{\code{mean}}{The mean of the score metric from calibration.
+#'   For example, T scores are calibrated to a mean of 50, so if T scores
+#'   are used, \code{mean} should be set to \code{50}.}
+#'   \item{\code{var_ts}}{The variance of the score metric from calibration.
+#'   For example, T scores are calibrated to a standard deviation of 10, so
+#'   if T scores are used, \code{var_ts} should be set to \code{100}.}
 #' }
 #'
 #' In addition, each \code{scoreType} requires specific other elements
@@ -57,147 +57,137 @@
 #'
 #' @examples
 #' Coming soon!
-mice.impute.truescore=function(y,ry,x,wy=NULL,
-                               calibration=NULL,...){
-  # print(head(cbind(y,x)))
-  # print(apply(x,2,mean))
-  ########################################################################
-  # INPUT VALIDATION: REJECT IF CALIBRATION DATA ARE NOT WELL-STRUCTURED #
-  if(is.null(calibration$separated))calibration$separated=T
+mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) { # nolint: line_length_linter,object_name_linter.
+    #######################################################################
+    #INPUT VALIDATION: REJECT IF CALIBRATION DATA ARE NOT WELL-STRUCTURED #
+    #######################################################################
+    if (is.null(calibration$separated))
+        calibration$separated = T
 
-  ####################
-  # DATA PREPARATION #
-  #identify observed scores and standard errors
-  scoreAdd=calibration$mean
-  scoreMult=sqrt(calibration$varTS)
-  w=(x[,colnames(x)==calibration$OSNAME]-scoreAdd)/scoreMult
-  se.w=x[,colnames(x)==calibration$SENAME]/scoreMult
-  xdata=x[,which(!colnames(x)%in%c(calibration$OSNAME,calibration$SENAME))]
-  if(!is.data.frame(xdata)){
-    xdata=data.frame(xdata)
-    names(xdata)=colnames(x)[which(!colnames(x)%in%c(calibration$OSNAME,calibration$SENAME))]
-  }
-  xdata=as.matrix(xdata)
-  #filter only to cases with data on w
-  which.2impute=which(!is.na(w) & apply(!is.na(xdata),1,all))
-  w=w[which.2impute]
-  se.w=se.w[which.2impute]
-  xdata=xdata[which.2impute,]
-  x=x[which.2impute,]
-  if(!is.matrix(xdata)){
-    xdata=data.frame(xdata)
-    names(xdata)=colnames(x)[which(!colnames(x)%in%c(calibration$OSNAME,calibration$SENAME))]
-  }
-  xdata=as.matrix(xdata)
-  NSAMPLE=length(which.2impute)
+    #################### DATA PREPARATION
+    # identify observed scores and standard errors
+    score_add = calibration$mean
+    score_mult = sqrt(calibration$var_ts)
+    w = (x[, colnames(x) == calibration$OSNAME] - score_add) / score_mult
+    se_w = x[, colnames(x) == calibration$SENAME] / score_mult
+    xdata = x[, which(!colnames(x) %in% c(calibration$OSNAME,
+                                          calibration$SENAME))]
+    if (!is.data.frame(xdata)) {
+        xdata = data.frame(xdata)
+        names(xdata) = colnames(x)[
+          which(!colnames(x) %in% c(calibration$OSNAME,
+                                    calibration$SENAME))]
+    }
+    xdata = as.matrix(xdata)
+    # filter only to cases with data on w
+    which_2impute = which(!is.na(w) & apply(!is.na(xdata), 1, all))
+    w = w[which_2impute]
+    se_w = se_w[which_2impute]
+    xdata = xdata[which_2impute, ]
+    x = x[which_2impute, ]
+    if (!is.matrix(xdata)) {
+        xdata = data.frame(xdata)
+        names(xdata) = colnames(x)[
+          which(!colnames(x) %in% c(calibration$OSNAME,
+                                    calibration$SENAME))]
+    }
+    xdata = as.matrix(xdata)
+    nsample = length(which_2impute)
 
-  ######################################################
-  # DEFINE OBSERVED SCORE VARIANCE BASED ON SCORE TYPE #
-  if(calibration$scoreType=='CTT'){
-    #mean is easy; same as OS mean
-    calibration$meanOS=mean(w,na.rm=T)
-    calibration$meanTS=calibration$meanOS
-    #get observed score variance from data
-    calibration$varOS=rep(var(w,na.rm=T),length(w))
-    #get error variance from calibration information only
-    varE=(1-calibration$reliability)/calibration$reliability
-    #compute true score variance for our data
-    calibration$varTS=calibration$varOS-varE
-    #compute reliability for our data
-    calibration$reliability=calibration$varTS/calibration$varOS
-  } else if(calibration$scoreType=='EAP'){
-    #Lord, 1986, but given for normal prior.
-    I.EAP=1/(se.w^2)
-    I.EAP2MLE=1/(se.w^2)-1
-    # I.EAP=1/(x[,colnames(x)==calibration$SENAME]^2)
+    ######################################################
+    # DEFINE OBSERVED SCORE VARIANCE BASED ON SCORE TYPE #
+    if (calibration$scoreType == "CTT") {
+        # mean is easy; same as OS mean
+        calibration$mean_os = mean(w, na.rm = T)
+        calibration$mean_ts = calibration$mean_os
+        # get observed score variance from data
+        calibration$var_os = rep(var(w, na.rm = T), length(w))
+        # get error variance from calibration information only
+        var_e = (1 - calibration$reliability) / calibration$reliability
+        # compute true score variance for our data
+        calibration$var_ts = calibration$var_os - var_e
+        # compute reliability for our data
+        calibration$reliability = calibration$var_ts / calibration$var_os
+    } else if (calibration$scoreType == "EAP") {
+        # Lord, 1986, but given for normal prior.
+        i_eap2mle = 1 / (se_w^2) - 1
 
-    #hmmm...
-    # print(paste0('means ',calibration$OSNAME))
-    # print(mean(w))
-    if(!calibration$separated){
-      w=w+w/mean(I.EAP2MLE)
-    } else w=w+w/I.EAP2MLE
-    # print(mean(w))
-    calibration$meanOS=mean(w)
-    calibration$meanTS=calibration$meanOS
-    calibration$varOS=var(w,na.rm=T)
-    #MLE-style standard errors?
-    # original.varTS=calibration$varTS
-    if(!calibration$separated){
-      calibration$varTS=calibration$varOS-mean(1/(I.EAP2MLE))
-    } else calibration$varTS=calibration$varOS-1/(I.EAP2MLE)
-    # if(!calibration$separated){
-    #   calibration$varTS=1-mean(1/I.EAP2MLE)
-    # } else calibration$varTS=1-1/I.EAP2MLE
-    calibration$reliability=calibration$varTS/calibration$varOS
+        # hmmm...
+        if (!calibration$separated) {
+            w = w + w / mean(i_eap2mle)
+        } else w = w + w / i_eap2mle
 
+        calibration$mean_os = mean(w)
+        calibration$mean_ts = calibration$mean_os
+        calibration$var_os = var(w, na.rm = T)
+        # MLE-style standard errors?
+        if (!calibration$separated) {
+            calibration$var_ts = calibration$var_os - mean(1 / (i_eap2mle))
+        } else calibration$var_ts = calibration$var_os - 1 / (i_eap2mle)
+        calibration$reliability = calibration$var_ts / calibration$var_os
 
-    # if(any(calibration$varTS<0) |
-    #    any(calibration$varOS<0) |
-    #    any(calibration$reliability<0)) print('hi')
+        if (any(calibration$var_ts < 0))
+            calibration$var_ts = ifelse(calibration$var_ts < 0,
+                                        0.01, calibration$var_ts)
+        if (any(calibration$var_os < 0))
+            calibration$var_os = ifelse(calibration$var_os < 0,
+                                        0.01, calibration$var_os)
+        if (any(calibration$reliability < 0))
+            calibration$reliability = ifelse(calibration$reliability < 0,
+                                             0.01, calibration$reliability)
 
-    if(any(calibration$varTS<0)) calibration$varTS=ifelse(
-      calibration$varTS<0,
-      0.01,calibration$varTS)
-    if(any(calibration$varOS<0)) calibration$varOS=ifelse(
-      calibration$varOS<0,
-      0.01,calibration$varOS)
-    if(any(calibration$reliability<0)) calibration$reliability=ifelse(
-      calibration$reliability<0,
-      0.01,calibration$reliability)
+        if (any(calibration$var_ts < 0) |
+            any(calibration$var_os < 0) |
+            any(calibration$reliability < 0))
+            stop("help")
+    } else if (calibration$scoreType == "ML") {
+        calibration$var_os = var(w, na.rm = T)
+        calibration$mean_os = mean(w, na.rm = T)
+        calibration$mean_ts = calibration$mean_os
+        # Mislevy, Beaton, Kaplan & Sheehan, 1992; page 138
+        if (!calibration$separated) {
+            calibration$var_ts = calibration$var_os - mean(se_w^2)
+        } else calibration$var_ts = calibration$var_os - se_w^2
 
-    if(any(calibration$varTS<0) |
-       any(calibration$varOS<0) |
-       any(calibration$reliability<0)) stop('help')
-  } else if(calibration$scoreType=='ML'){
-    #var(os)=var(ts)+SE^2
-    calibration$varOS=var(w,na.rm=T)
-    calibration$meanOS=mean(w,na.rm=T)
-    calibration$meanTS=calibration$meanOS
-    #Mislevy, Beaton, Kaplan & Sheehan, 1992; page 138
-    # print(calibration[c('meanOS','meanTS','varOS','varTS','reliability')]%>%map(summary))
-    # original.varTS=calibration$varTS
-    if(!calibration$separated){
-      calibration$varTS=calibration$varOS-mean(se.w^2)
-    } else calibration$varTS=calibration$varOS-se.w^2
+        # re-calculate reliability
+        calibration$reliability = calibration$var_ts / calibration$var_os
 
-    #re-calculate reliability
-    calibration$reliability=calibration$varTS/calibration$varOS
-    # calibration[c('varOS','varTS','meanOS','meanTS','reliability')]%>%walk(~summary(.)%>%print)
+        # set calibration pars to 'reasonable' minimum value
+        # if they dip below zero
+        if (any(calibration$var_ts < 0))
+            calibration$var_ts = ifelse(calibration$var_ts < 0,
+                                        0.01, calibration$var_ts)
+        if (any(calibration$var_os < 0))
+            calibration$var_os = ifelse(calibration$var_os < 0,
+                                        0.01, calibration$var_os)
+        if (any(calibration$reliability < 0))
+            calibration$reliability = ifelse(calibration$reliability < 0,
+                                             0.01, calibration$reliability)
 
-    #set calibration pars to "reasonable" minimum value if they dip below zero
-    if(any(calibration$varTS<0)) calibration$varTS=ifelse(
-      calibration$varTS<0,
-      0.01,calibration$varTS)
-    if(any(calibration$varOS<0)) calibration$varOS=ifelse(
-      calibration$varOS<0,
-      0.01,calibration$varOS)
-    if(any(calibration$reliability<0)) calibration$reliability=ifelse(
-      calibration$reliability<0,
-      0.01,calibration$reliability)
-
-    if(any(calibration$varTS<0) |
-       any(calibration$varOS<0) |
-       any(calibration$reliability<0)) stop('help')
-  }
-  #make it a vector
-  if(length(calibration$varOS)==1)calibration$varOS=rep(calibration$varOS,nrow(xdata))
-  # print(summary(w))
-  # for(i in 1:ncol(xdata))print(summary(xdata[,i]))
-  #################
-  # DO IMPUTATION #
-  imputed=MIEC(maindata=cbind(w,xdata),
-               calibdata=calibration,
-               NCALIB=Inf, #sample size in calibration data?
-               NSAMPLE=NSAMPLE, #sample size in estimation data?
-               M=1, #number of imputations
-               N=1, #number of second stage draws?
-               K=ncol(xdata), #number of parameters of interest?
-               S=0, #number of covariates?
-               CTT=T) #Mansolf's parameters from CTT
-  #add NA's back in
-  out=rep(NA,length(y))
-  # print(summary(imputed))
-  out[which.2impute]=imputed*scoreMult+scoreAdd
-  out
+        if (any(calibration$var_ts < 0) |
+            any(calibration$var_os < 0) |
+            any(calibration$reliability < 0))
+            stop("help")
+    }
+    # make it a vector
+    if (length(calibration$var_os) == 1)
+        calibration$var_os = rep(calibration$var_os, nrow(xdata))
+    #################
+    # DO IMPUTATION #
+    #maindata: analysis data, with score in front
+    #calibdata: calibration information
+    #NCALIB: sample size in calibration data
+    #nsample: sample size in estimation data
+    #M: number of imputations
+    #N: number of second stage draws
+    #K: number of parameters of interest
+    #S: number of covariates
+    imputed = miec(maindata = cbind(w, xdata),
+                   calibdata = calibration,
+                   ncalib = Inf, nsample = nsample,
+                   m = 1, n = 1, k = ncol(xdata), s = 0)
+    # add NA's back in
+    out = rep(NA, length(y))
+    out[which_2impute] = imputed * score_mult + score_add
+    out
 }

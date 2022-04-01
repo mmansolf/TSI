@@ -1,0 +1,11 @@
+
+exclusions: list(
+    "man/hello.Rd",
+    "man/mice.impute.truescore.Rd",
+    "vignettes/tsi_vignette.Rmd"
+  )
+
+linters: lintr::with_defaults(
+    assignment_linter = NULL,
+    cyclocomp_linter = NULL
+  )
