@@ -19,7 +19,7 @@ We recommend installing the latest development version of this package from Gith
 `install_github('TSI')`
 
 # Additional license information
-LICENSE: Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+LICENSE: Creative Commons - Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
 * For more information on this license type, see https://creativecommons.org/licenses/by-nc/4.0/
 * For more information on licensing for this package in particular, see the included LICENSE.md file.
 
