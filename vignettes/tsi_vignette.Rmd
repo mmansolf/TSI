@@ -1,6 +1,6 @@
 ---
-title: "True Score Imputation Examples"
-output: rmarkdown::html_vignette
+title: "True Score Imputation with the TSI Package in R"
+output: rmarkdown::pdf_document
 vignette: >
   %\VignetteIndexEntry{True Score Imputation Examples}
   %\VignetteEngine{knitr::rmarkdown}
@@ -10,16 +10,18 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  echo = TRUE
 )
+options(digits=3)
 ```
 
-```{r setup}
+The `devtools` library can be used to install the `TSI` package directly from Github:
+
+```{r setup, message=F, warning=F}
+library(devtools)
+install_github('mmansolf/TSI')
 library(TSI)
-```
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Simulate data
@@ -43,17 +45,17 @@ varW=1 #variance of observed score
 # SIMUALTE DATA #
 x1=rnorm(n,meanX,sqrt(varX))
 e1=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
-w1=((x1+e1)-meanX)/sqrt(varX+varX*(1-ratio)/ratio)*sqrt(varW)+meanW
+w1=x1+e1
 x2=rnorm(n,meanX+d*sqrt(varX),sqrt(varX))
 e2=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
-w2=((x2+e2)-meanX)/sqrt(varX+varX*(1-ratio)/ratio)*sqrt(varW)+meanW
+w2=x2+e2
 ```
 
 # Compare true, uncorrected, & corrected mean differences
 
 The mean difference between the two groups on the `x` metric is `mean(x2)-mean(x1)` = `r mean(x2)-mean(x1)`, and on the w metric the same mean difference is `mean(w2)-mean(w1)` = `r mean(w2)-mean(w1)`, so we can see some bias.
 
-Let's try correcting for it! To do so, we can use the `'truescore'` imputation function from the functions we loaded earlier, but we need to specify some things when we do. The true score imputation method relies on parameters specific to the observed score variable `w` and the true score variable `x`, and we need to bring those in specifically to impute that variable. For this, we can us the `blocks` option in the `mice` package. Without futher ado, let's load that package:
+Let's try correcting for it! To do so, we can use the `'truescore'` imputation function from the functions we loaded earlier, but we need to specify some things when we do. The true score imputation method relies on parameters specific to the observed score variable `w` and the true score variable `x`, and we need to bring those in specifically to impute that variable. For this, we can us the `blots` option in the `mice` package. Without futher ado, let's load that package:
 
 ```{r, message=F, warning=F}
 library(mice)
@@ -79,11 +81,10 @@ mice.data=mice(data,m=nimpute,
                blocks=list('x'),
                method='truescore',
                calibration=list(OSNAME='w',
+                                scoreType='CTT',
                                 reliability=ratio,
-                                meanTS=meanX,
-                                meanOS=meanW,
-                                varTS=varX,
-                                varOS=varW),
+                                mean_ts=meanX,
+                                var_ts=varX),
                printFlag=F)
 mice.data
 ```
@@ -96,28 +97,45 @@ For more information on these inputs, see the documentation for the `mice` funct
 * Calibration information, including reliability and the mean and variances of true and observed scores, must be specified in an additional argument named `calibration`. The elements of the list must be the following, in any order, and all must be named as follows:
     + `OSNAME` (character vector): Name of the observed score variable in the data set.
     + `reliability` (numeric scalar or vector with length equal to `nrow(data)`: An estimate of the reliability of the observed scores as measures of the true score. If a scalar is provided, the same reliability is assumed for all values of the observed score.
-    + `meanTS` and `varTS` (numeric scalars): Mean and variance of true scores, respectively. The analyst can select whichever metric makes the most sense to them, but typically the standard normal metric (`meanTS=0,varTS=1`) or the observed score metric (e.g., T-scores where `meanTS=50,varTS=10`) will be used for ease in interpretation.
-    + `meanOS` and `varOS` (numeric scalars): Mean and variance of observed scores, respectively, *in the calibration sample*. This information should ideally be obtained from calibration. If values from the data are used (e.g., `meanOS=mean(w),varOS=var(w)`), results may be biased or unstable.
+    + `mean_ts` and `var_ts` (numeric scalars): Mean and variance of true scores, respectively. The analyst can select whichever metric makes the most sense to them, but typically the standard normal metric (`mean_ts=0,var_ts=1`) or the observed score metric (e.g., T-scores where `mean_ts=50,var_ts=10`) will be used for ease in interpretation.
 
 # Analyzing the imputed data
 
 Once data are generated using `mice`, the resulting `r class(mice.data)` object can be analyzed using multiple imputation techniques. Here, we can use the `lm.mids` function to predict `x` from `y`:
 
 ```{r}
-pool(lm.mids(x~y,mice.data))
+pool(with(mice.data,lm(x~y)))
 ```
 
 Comparing this result to that from using the observed score `w`:
 
 ```{r}
-pool(lm.mids(w~y,mice.data))
+pool(with(mice.data,lm(w~y)))
 ```
 
-We can see a distinct reduction in bias; our estimate of the mean difference using the observed `w` is `r round(pool(lm.mids(w~y,mice.data))$pooled[2,'estimate'],3)`, while using true score imputation yields an estimate of `r round(pool(lm.mids(x~y,mice.data))$pooled[2,'estimate'],3)`, which is very close to the true value of `r d`.
+The results are the same, because under classical test theory, the slope relating the mismeasured `x` from the measured `y` is unaffected by the measurement error. One statistic that is affected is the standard deviation of the score. To obtain this, we obtain a list of completed data sets `mice.data`,
+
+```{r}
+mice.data=complete(mice.data,'all')
+```
+
+calculate the standard deviation of `x` in each imputed data set, stored as `sds.x`,
+
+```{r}
+sds.x=sapply(mice.data,function(x)apply(x,2,sd))
+```
+
+and calculate the mean standard deviation across imputations:
+
+```{r}
+apply(sds.x,1,mean)
+```
+
+The standard deviation of `w` is inflated compared to that of the underlying true score, while the standard deviation of the imputed `x` is unbiased.
 
 ## A more complicated example
 
-Because true score imputation can be used in the mice package, it can be used in tandem with conventional multiple imputation. To illustrate, I simulated two uncorrelated, normally-distributed variables, `x` and `m`, and used them to generate a new variable `y`:
+Because true score imputation can be used in the `mice` package, it can be used in tandem with conventional multiple imputation. To illustrate, I simulated two uncorrelated, normally-distributed variables, `x` and `m`, and used them to generate a new variable `y` according to a simple regression model:
 
 ```{r}
 set.seed(1)
@@ -128,9 +146,9 @@ y=1+0.4*x+0.6*m+rnorm(1000,0,1)
 
 Thus, `y` is related to `m` and `w` by the equation `y=0.4x+0.6m+e`, where `e~N(0,1)`, in a prototypical multiple regression configuration.
 
-Next, I used calibrated item parameters from the NIH Toolbox emotion battery norming study to simulate item responses on the 4-item Perceived Stress Scale (PSS4) for each of `x` and `y`. I then scored these item responses using the same item parameters, yielding a set of T-scores and standard errors (SE's) for each record. These two quantities are provided routinely by the HealthMeasures scoring service.
+Next, I used calibrated item parameters from the NIH Toolbox emotion battery norming study (Kupst et al., 2015) to simulate item responses on the 4-item Perceived Stress Scale (PSS4) for each of `x` and `y`. I then scored these item responses using the same item parameters, yielding a set of T-scores and standard errors (SE's) for each record. These two quantities are provided routinely by the HealthMeasures scoring service, and while the standard errors are more often used in assessing individual change.
 
-Lastly, I used a missing completely at random (MCAR) missing data model to set approximately 10% of the values of `m` and the T-score/SE pairs to missing. This simulates nonresponse that might also be expected in practice. This "amputation" was conducted separately for `m`, for the T-score/SE pairs for `x`, and for the T-score/SE pairs for `y`.
+Lastly, I used a missing completely at random (MCAR) missing data model to set approximately 10% of the values of `m` and the T-score/SE pairs to missing. This "amputation" was conducted separately for `m`, for the T-score/SE pairs for `x`, and for the T-score/SE pairs for `y`.
 
 Let's read in the simulated data,
 
@@ -148,27 +166,32 @@ data$Ty=NA
 Once again, I'll present the code, then explain what it does:
 
 ```{r}
-mice.data=mice(data[,-c(3,4)],m=10,maxit=100,
-               method=c('pmm','truescore','truescore'),
-               blocks=list(obs=c('m','Fx','Fy'),Tx='Tx',Ty='Ty'),
+mice.data=mice(data,m=10,maxit=10,
+               method=c('pmm','pmm','pmm','pmm','pmm',
+                        'truescore','truescore'),
+               blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
+                           Tx='Tx',Ty='Ty'),
                blots=list(Tx=list(calibration=list(OSNAME='Fx',
-                                                   # SENAME='SE.Fx',
-                                                   reliability=mean(1-data$SE.Fx^2/100,na.rm=T),
-                                                   meanTS=0,
-                                                   meanOS=50,
-                                                   varTS=1,
-                                                   varOS=74.64159)),
+                                                   SENAME='SE.Fx',
+                                                   scoreType='EAP',
+                                                   mean=50,
+                                                   var_ts=100,
+                                                   separated=T)),
                           Ty=list(calibration=list(OSNAME='Fy',
-                                                   # SENAME="SE.Fx",
-                                                   reliability=mean(1-data$SE.Fy^2/100,na.rm=T),
-                                                   meanTS=0,
-                                                   meanOS=50,
-                                                   varTS=1,
-                                                   varOS=74.64159))),
-               predictorMatrix=matrix(c(1,1,1,1,1,
-                                        1,0,1,0,1,
-                                        0,1,1,1,0),3,5,byrow=T),
-               printFlag=F)
+                                                   SENAME="SE.Fy",
+                                                   scoreType='EAP',
+                                                   mean=50,
+                                                   var_ts=100,
+                                                   separated=T))),
+               predictorMatrix=matrix(c(0,1,0,1,1,0,0,
+                                        1,0,1,0,1,0,0,
+                                        0,1,0,1,1,0,0,
+                                        1,0,1,0,1,0,0,
+                                        1,1,1,1,0,0,0,
+                                        1,1,1,1,1,0,0,
+                                        1,1,1,1,1,0,0),7,7,byrow=T),
+               printFlag=F,
+               remove.constant=F)
 mice.data
 ```
 
@@ -195,7 +218,7 @@ lm(y~x+m)
 Using the observed T-scores yields:
 
 ```{r}
-pool(lm.mids(Fy~Fx+m,mice.data))
+pool(with(mice.data,lm(Fy~Fx+m)))
 ```
 
 Observe that the regression coefficient associated with `Fx`, the T-score for `x`, is between 0 and 1, because both T-scores are on the same metric; therefore, this estimate can be directly compared to that from the true, complete data above. In contrast, the `m` variable was not linearly transformed and therefore its coefficient *should* be multiplied by 10 because the SD of T-scores is 10, and attempting to place it back on the original metric by dividing by 10 yields `r round(pool(lm.mids(Fy~Fx+m,mice.data))$pooled[3,'estimate']*10,3)`. In both cases, the two regression coefficient estimates are biased.
@@ -203,7 +226,7 @@ Observe that the regression coefficient associated with `Fx`, the T-score for `x
 Finally, using true score imputation yields:
 
 ```{r}
-pool(lm.mids(Ty~Tx+m,mice.data))
+pool(with(mice.data,lm(Ty~Tx+m)))
 ```
 
-Bias has been reduced to almost zero!
+Bias has been substantially reduced, and the fractions of missing information `fmi` now represent both information lost to missingness and information lost to measurement error.
