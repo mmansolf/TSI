@@ -7,7 +7,28 @@ This package includes code Adapted with permission from Wolters Kluwer Health, I
 * Full text link: https://journals.lww.com/epidem/Fulltext/2012/01000/On_Using_Summary_Statistics_From_an_External.25.aspx
 
 # Description
-Generates data sets using true score imputation to account for psychometric measurement error. Imputation is conducted by a call to the `mice` function from the eponymous package, using `method='truescore'` to call the custom imputation function `mice.impute.truescore` included in this package. Reliability or standard error of measurement are incorporated through the `blots` argument to `mice`.
+Generates data sets using true score imputation to account for psychometric measurement error. Imputation is conducted by a call to the `mice` function from the eponymous package, using `method='truescore'` to call the custom imputation function `mice.impute.truescore` included in this package. Reliability or standard error of measurement are incorporated through the `blots` argument to `mice`. Because these function calls can be complicated, a convenience function `TSI` is included which creates and executes the `mice` call for the user.
+
+# Example
+The following code uses an included data set, `data_eap`, containing two variables containing EAP-generated T scores, `Fx` and `Fy`, and associated standard errors, `SE.Fx` and `SE.Fy`, respectively. This code conducts five imputations with five burn-in iterations per imputation, generating imputed true score variables `Tx` and `Ty`. More details on this example can be found in the vignette, obtained by running `vignette('TSI')` after installing the package.
+```
+library(TSI)
+mice.data=TSI(data_eap,
+              OSNAMES=c('Fx','Fy'),
+              SENAMES=c('SE.Fx','SE.Fy'),
+              metrics='T',
+              scoreTypes='EAP',
+              separated=T,
+              TSNAMES=c('Tx','Ty'),
+              mice_args=c(m=5,maxit=5,printFlag=F))
+mice.data
+```
+
+The resulting `mids` object can be analyzed using convenience functions available for the `mice` package:
+
+```
+pool(with(mice.data,lm(Ty~Tx+m)))
+```
 
 # Installing from source
 We recommend installing the latest development version of this package from Github to ensure use of the latest and greatest version. To do so:
@@ -16,8 +37,9 @@ We recommend installing the latest development version of this package from Gith
 2. Load the `devtools` package using the following code:
 `library(devtools)`
 3. Install the `TSI` package using `install_github()` using the following code:
-`devtools::install_github('TSI')`
-Note that `TSI` is not yet on CRAN, so trying to install it with `install.packages()` will not work. This is coming soon!
+`devtools::install_github('TSI',build_vignettes=T)`
+The `,build_vignettes=T` is optional but recommended for viewing the vignette accompanying this package.
+The `TSI` package is not yet on CRAN, so trying to install it with `install.packages()` will not work. This is coming soon!
 
 ## Other installation options
 While the above method should work for most users, there are alternatives:
