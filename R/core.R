@@ -100,7 +100,7 @@
 #'
 #' #true score imputation
 #' set.seed(0)
-#' mice.data=mice(data_eap_2,m=2,maxit=2,
+#' mice.data=mice(data_eap_2,m=10,maxit=10,
 #'   method=c('pmm','pmm','pmm','pmm','pmm',
 #'            'truescore','truescore'),
 #'   blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",

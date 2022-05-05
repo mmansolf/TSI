@@ -92,7 +92,7 @@
 #'               scoreTypes='EAP',
 #'               separated=T,
 #'               TSNAMES=c('Tx','Ty'),
-#'               mice_args=c(m=2,maxit=2,printFlag=F))
+#'               mice_args=c(m=10,maxit=10,printFlag=F))
 #' mice.data
 #'
 #' #multiple regression with imputed true scores
