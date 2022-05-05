@@ -98,7 +98,7 @@ generate those function calls.
 mice.data=TSI(data_ctt,
               OSNAMES='w',
               scoreTypes='CTT',
-              reliability=ratio,
+              reliability=0.6,
               mean=0,
               var_ts=1,
               mice_args=list(m=10,printFlag=F))
