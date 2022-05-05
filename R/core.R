@@ -70,7 +70,7 @@
 #'
 #' #true score imputation
 #' set.seed(0)
-#' mice.data=mice(data_ctt_2,m=2,
+#' mice.data=mice(data_ctt_2,m=5,
 #'   blocks=list('TRUE_w'),
 #'   method='truescore',
 #'   calibration=list(OSNAME='w',
@@ -100,7 +100,7 @@
 #'
 #' #true score imputation
 #' set.seed(0)
-#' mice.data=mice(data_eap_2,m=10,maxit=10,
+#' mice.data=mice(data_eap_2,m=5,maxit=5,
 #'   method=c('pmm','pmm','pmm','pmm','pmm',
 #'            'truescore','truescore'),
 #'   blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",

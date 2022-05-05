@@ -77,7 +77,7 @@ mice.data=TSI(data_ctt,
               reliability=ratio,
               mean=0,
               var_ts=1,
-              mice_args=list(m=10,printFlag=F))
+              mice_args=list(m=5,printFlag=F))
 
 mice.data
 ```
@@ -88,7 +88,7 @@ For classical test theory, the following are required:
 * `scoreTypes`: Character vector of models used to generate each score. Here, the score was generated under classical test theory `'CTT'`.
 * `reliability`: Numeric vector of reliability values for each observed score. Here, I copied this from the `ratio` variable defined above.
 * `mean` and `var_ts`: Numeric vectors of means and variances of the underlying true scores. Here, `x` was simulated with a mean of `0` and variance of `1`.
-* `mice_args`: Additional arguments passed to the `mice` function. Here, I'm specifying 10 imputations and to not print the trace output during execution.
+* `mice_args`: Additional arguments passed to the `mice` function. Here, I'm specifying 5 imputations and to not print the trace output during execution.
 
 Observe that a new variable, `TRUE_w`, was generated as part of this call. This variable contains the imputed true score values. We can quickly look at the first imputation using the `complete` function in the `mice` package:
 
@@ -113,7 +113,7 @@ mice.data=TSI(data_ctt,
               scoreTypes='CTT',
               reliability=ratio,
               metrics='z',
-              mice_args=list(m=2,printFlag=F))
+              mice_args=list(m=5,printFlag=F))
 
 mice.data
 ```
@@ -190,7 +190,7 @@ mice.data=TSI(data_eap,
               scoreTypes='EAP',
               separated=T,
               TSNAMES=c('Tx','Ty'),
-              mice_args=c(m=10,maxit=10,printFlag=F))
+              mice_args=c(m=5,maxit=5,printFlag=F))
 
 mice.data
 
@@ -255,7 +255,7 @@ Then, the `mice` function is called with `method='truescore'`:
 
 ```{r}
 set.seed(0)
-mice.data=mice(data_ctt_2,m=10,
+mice.data=mice(data_ctt_2,m=5,
                blocks=list('TRUE_w'),
                method='truescore',
                calibration=list(OSNAME='w',
@@ -308,7 +308,7 @@ Then, we need a more complicated call to `mice`:
 
 ```{r}
 set.seed(0)
-mice.data=mice(data_eap_2,m=10,maxit=10,
+mice.data=mice(data_eap_2,m=5,maxit=5,
                method=c('pmm','pmm','pmm','pmm','pmm',
                         'truescore','truescore'),
                blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
