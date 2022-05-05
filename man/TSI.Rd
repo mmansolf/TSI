@@ -101,7 +101,7 @@ mice.data=TSI(data_ctt,
               reliability=0.6,
               mean=0,
               var_ts=1,
-              mice_args=list(m=10,printFlag=F))
+              mice_args=list(m=5,printFlag=F))
 mice.data
 
 #analyze with imputed true scores
@@ -122,7 +122,7 @@ mice.data=TSI(data_eap,
               scoreTypes='EAP',
               separated=T,
               TSNAMES=c('Tx','Ty'),
-              mice_args=c(m=2,maxit=2,printFlag=F))
+              mice_args=c(m=5,maxit=5,printFlag=F))
 mice.data
 
 #multiple regression with imputed true scores
