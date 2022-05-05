@@ -1,6 +1,6 @@
 ---
 title: "True Score Imputation with the TSI Package in R"
-output: rmarkdown::pdf_document
+output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{True Score Imputation Examples}
   %\VignetteEngine{knitr::rmarkdown}
