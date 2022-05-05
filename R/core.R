@@ -1,4 +1,4 @@
-#' True Score Imputation with mice
+#' Custom mice imputation function for true score imputation
 #'
 #' This custom imputation function is used with the \code{mice}
 #' package by setting method='truescore' for each variable imputed using
@@ -6,7 +6,7 @@
 #' \code{mice.impute.truescore}. Although possible, this function is not
 #' meant to be run on its own; see documentation for other \code{mice}
 #' imputation files, e.g., \code{\link[mice]{mice.impute.pmm}}, for details
-#' on this usage. Example usage through the mice package is provided in
+#' on this usage. Example usage through the \code{mice} package is provided in
 #' Examples below.
 #'
 #' @inherit mice::mice.impute.pmm return params
@@ -53,10 +53,84 @@
 #' }
 #'
 #' @section Specifying the Predictor Matrix:
-#' Coming soon!
+#' Based on (unpublished) simulation results, it seems the best way to specify
+#' the predictor matrix for use in \code{mice} is for true scores to be
+#' predicted from all observed variables but \emph{not} to predict other
+#' missing data from the imputed true scores. This is the default behavior
+#' when the \code{TSI} function is used, and we recommend, unless further
+#' research identifies otherwise, that the same be done when using this
+#' function to interact with \code{mice} directly.
 #'
 #' @examples
-#' Coming soon!
+#' ##############
+#' # CTT SCORES #
+#' #add empty (NA) variables to data set to store true scores
+#' data_ctt_2=data_ctt
+#' data_ctt_2$TRUE_w=NA
+#'
+#' #true score imputation
+#' set.seed(0)
+#' mice.data=mice(data_ctt_2,m=2,
+#'   blocks=list('TRUE_w'),
+#'   method='truescore',
+#'   calibration=list(OSNAME='w',
+#'                    scoreType='CTT',
+#'                    reliability=0.6,
+#'                    mean_ts=0,
+#'                    var_ts=1),
+#'   predictorMatrix=matrix(c(1,1,0),1,3,byrow=T),
+#'   printFlag=F,
+#'   remove.constant=F)
+#' mice.data
+#'
+#' #analyze with imputed true scores
+#' pool(with(mice.data,lm(TRUE_w~y)))
+#'
+#' #compare standard deviations of observed and imputed true scores
+#' mice.data=complete(mice.data,'all')
+#' sds=sapply(mice.data,function(d)apply(d,2,sd))
+#' apply(sds,1,mean)
+#'
+#' ##############
+#' # EAP SCORES #
+#' #add empty (NA) variables to data set to store true scores
+#' data_eap_2=data_eap
+#' data_eap_2$Tx=NA
+#' data_eap_2$Ty=NA
+#'
+#' #true score imputation
+#' set.seed(0)
+#' mice.data=mice(data_eap_2,m=2,maxit=2,
+#'   method=c('pmm','pmm','pmm','pmm','pmm',
+#'            'truescore','truescore'),
+#'   blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
+#'               Tx='Tx',Ty='Ty'),
+#'   blots=list(Tx=list(calibration=list(OSNAME='Fx',
+#'                                       SENAME='SE.Fx',
+#'                                       scoreType='EAP',
+#'                                       mean=50,
+#'                                       var_ts=100,
+#'                                       separated=T)),
+#'              Ty=list(calibration=list(OSNAME='Fy',
+#'                                       SENAME="SE.Fy",
+#'                                       scoreType='EAP',
+#'                                       mean=50,
+#'                                       var_ts=100,
+#'                                       separated=T))),
+#'   predictorMatrix=matrix(c(0,1,1,1,1,0,0,
+#'                            1,0,1,1,1,0,0,
+#'                            1,1,0,1,1,0,0,
+#'                            1,1,1,0,1,0,0,
+#'                            1,1,1,1,0,0,0,
+#'                            1,1,1,1,1,0,0,
+#'                            1,1,1,1,1,0,0),7,7,byrow=T),
+#'   printFlag=F,
+#'   remove.constant=F)
+#' mice.data
+#'
+#' #multiple regression with imputed true scores
+#' pool(with(mice.data,lm(Ty~Tx+m)))
+#' @export
 mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) { # nolint: line_length_linter,object_name_linter.
   #######################################################################
   #INPUT VALIDATION: REJECT IF CALIBRATION DATA ARE NOT WELL-STRUCTURED #
@@ -68,6 +142,7 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   # identify observed scores and standard errors
   score_add = calibration$mean
   score_mult = sqrt(calibration$var_ts)
+
   w = (x[, colnames(x) == calibration$OSNAME] - score_add) / score_mult
   se_w = x[, colnames(x) == calibration$SENAME] / score_mult
   xdata = x[, which(!colnames(x) %in% c(calibration$OSNAME,
@@ -182,6 +257,7 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   #N: number of second stage draws
   #K: number of parameters of interest
   #S: number of covariates
+
   imputed = miec(maindata = cbind(w, xdata),
                  calibdata = calibration,
                  ncalib = Inf, nsample = nsample,

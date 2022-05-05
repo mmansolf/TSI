@@ -10,11 +10,12 @@ Description: Performs true score imputation (TSI) for psychometric variables wit
     the mice package (van Buuren & Goothuis-Oudshoorn, 2011) by implementing TSI
     as a custom imputation function, allowing TSI to be combined with multiple
     imputation for missing data.
-License: What license is it under?
+License: EC
 Encoding: UTF-8
 LazyData: true
 Suggests: 
-    knitr,
-    rmarkdown
 VignetteBuilder: knitr
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
+Depends:
+    R (>= 2.10),
+    mice

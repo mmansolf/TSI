@@ -1,3 +1,103 @@
+#' True score imputation
+#'
+#' Conduct true score imputation on variables with psychometric error,
+#' optionally in concert with multiple imputation for missing data. This
+#' function calls the \code{mice} function in the package of
+#' the same name, using the custom imputation function
+#' \code{\link[TSI]{mice.impute.truescore}} for imputation of mismeasured
+#' variables. Direct calls to \code{mice} can get complicated (see
+#' documentation of \code{\link[TSI]{mice.impute.truescore}} for examples),
+#' so this function was created as a convenicene function to more easily
+#' generate those function calls.
+#'
+#' @param data Data frame on which to conduct imputation. By default, columns
+#' with missing values which are numeric will be imputed with the \code{pmm}
+#' method from \code{mice}, columns with names in \code{OSNAMES} will be
+#' imputed using true score imputation, and non-numeric columns will be
+#' ignored.
+#' @param OSNAMES Character vector of names of variables in \code{data} on
+#' which to use true score imputation.
+#' @param scoreTypes Character vector specifying psychometric model(s) used
+#' for true score imputation. Currently available options are \code{'CTT'}
+#' for classical test theory, \code{'EAP'} for item response theory with
+#' expected a posteriori scoring, and \code{'ML'} for item response theory
+#' with maximum likelihood scoring (not recommended). The selected  model
+#' should match how scores were generated, which requires some understanding
+#' of the scoring process; for instance, HealthMeasures instruments, which
+#' include PROMIS, NIH Toolbox, and NeuroQOL measures, use EAP scoring to
+#' generate T scores and therefore \code{scoreTypes='EAP'} would be
+#' appropriate when using these T scores.
+#' @param SENAMES Required for \code{scoreTypes='EAP'} or
+#' \code{scoreTypes='ML'}. Character vector of names of variables in data set
+#' containing standard errors for score variables specified by \code{OSNAMES}.
+#' One variable must be specified for each variable in \code{OSNAMES}. Not
+#' required for \code{scoreTypes='CTT'}.
+#' @param reliability Required for \code{scoreTypes='CTT'}. Numeric vector of
+#' reliability estimates, one for each observed score variable in
+#' \code{OSNAMES} referring to the reliability of the corresponding variable
+#' named in \code{OSNAMES}.
+#' @param metrics Character vector of metrics of true scores for
+#' imputation. Available values are \code{'z'} for z scores (mean 0,
+#' variance 1), \code{'T'} for T scores (mean 50, variance 100), and
+#' \code{'standard'} for standard (IQ metric) scores (mean 100, variance 225).
+#' Either \code{metrics} or both \code{mean} and \code{var_ts} below must be
+#' specified for each variable, with each element referring to the
+#' corresponding variable named in \code{OSNAMES}.
+#' @param mean Numeric vector of means of true scores for imputation. Must be
+#' specified if \code{metrics} is not specified.
+#' @param var_ts Numeric vector of variances of true scores for imputation.
+#' Must be specified if \code{metrics} is not specified.
+#' @param separated Logical vector indicating whether, for variables imputed
+#' with \code{scoreTypes='EAP'} or \code{scoreTypes='ML'}, true score
+#' imputation uses an average standard error (\code{separated=F}), which runs
+#' faster but doesn't account for differential measurement error of the
+#' observed scores for each respondent, or whether separate standard errors
+#' are used for each value of each observed score (\code{separated=T}), which
+#' runs slower but accounts for differential measurement error.
+#' @param TSNAMES Optional vector of names of true score variables which
+#' will be created. Each element of \code{TSNAMES} denotes the name of the
+#' variable which will be created by \code{TSI} based on observed scores from
+#' the corresponding element of \code{OSNAMES}. The default value of
+#' \code{NULL} results in the prefix \code{TRUE_} being prepended to each
+#' element of \code{OSNAMES} when generating the imputed true scores.
+#' @param mice_args Named list of additional arguments passed to \code{mice}
+#'
+#' @examples
+#' ##############
+#' # CTT SCORES #
+#' mice.data=TSI(data_ctt,
+#'               OSNAMES='w',
+#'               scoreTypes='CTT',
+#'               reliability=ratio,
+#'               mean=0,
+#'               var_ts=1,
+#'               mice_args=list(m=10,printFlag=F))
+#' mice.data
+#'
+#' #analyze with imputed true scores
+#' pool(with(mice.data,lm(TRUE_w~y)))
+#'
+#' #compare standard deviations of observed and imputed true scores
+#' mice.data=complete(mice.data,'all')
+#' sds=sapply(mice.data,function(d)apply(d,2,sd))
+#' apply(sds,1,mean)
+#'
+#' ##############
+#' # EAP SCORES #
+#' set.seed(0)
+#' mice.data=TSI(data_eap,
+#'               OSNAMES=c('Fx','Fy'),
+#'               SENAMES=c('SE.Fx','SE.Fy'),
+#'               metrics='T',
+#'               scoreTypes='EAP',
+#'               separated=T,
+#'               TSNAMES=c('Tx','Ty'),
+#'               mice_args=c(m=2,maxit=2,printFlag=F))
+#' mice.data
+#'
+#' #multiple regression with imputed true scores
+#' pool(with(mice.data,lm(Ty~Tx+m)))
+#' @export
 TSI=function(data,OSNAMES,scoreTypes,
              SENAMES=NULL,metrics=NULL,mean=NULL,var_ts=NULL,reliability=NULL,
              separated=rep(T,length(OSNAMES)),TSNAMES=paste0("TRUE_",OSNAMES),
@@ -54,8 +154,8 @@ The number of elements in ',names(args_to_test)[i],' should be 1 or match the nu
     stop("Please specify scoreType from the available types for true score imputation ('CTT', 'EAP', or 'ML')")
 
   #test permissible scoreTypes and metrics
-  if(!all(metrics%in%c(NULL,NA,'z','T','Standard')))
-    stop("Please specify metric from the available metrics for true score imputation ('z', 'T', 'Standard')")
+  if(!all(metrics%in%c(NULL,NA,'z','T','standard')))
+    stop("Please specify metric from the available metrics for true score imputation ('z', 'T', 'standard')")
 
   #warn if ML is used
   if(any(scoreTypes%in%c('ML')))
@@ -131,23 +231,25 @@ The number of elements in ',names(args_to_test)[i],' should be 1 or match the nu
     blots[[TSNAMES[i]]]$OSNAME=OSNAMES[i]
     if(scoreTypes[i]%in%c("EAP","ML")){
       blots[[TSNAMES[i]]]$SENAME=SENAMES[i]
+    } else if(scoreTypes[i]=='CTT'){
+      blots[[TSNAMES[i]]]$reliability=reliability[i]
     }
     blots[[TSNAMES[i]]]$scoreType=scoreTypes[i]
     blots[[TSNAMES[i]]]$separated=separated[i]
-    if(!is.null(metrics[i]) & !is.na(metrics[i])){
+    if(!is_null_or_na(metrics[i])){
       if(metrics[i]=='z'){
         mean[i]=0
         var_ts[i]=1
       } else if(metrics[i]=='T'){
         mean[i]=50
         var_ts[i]=100
-      } else if(metrics[i]=='Standard'){
+      } else if(metrics[i]=='standard'){
         mean[i]=100
         var_ts[i]=225
       }
-      blots[[TSNAMES[i]]]$mean=mean[i]
-      blots[[TSNAMES[i]]]$var_ts=var_ts[i]
     }
+    blots[[TSNAMES[i]]]$mean=mean[i]
+    blots[[TSNAMES[i]]]$var_ts=var_ts[i]
   }
   #put into calibration list
   blots=lapply(blots,function(x)list(calibration=x))

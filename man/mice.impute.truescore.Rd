@@ -2,7 +2,7 @@
 % Please edit documentation in R/core.R
 \name{mice.impute.truescore}
 \alias{mice.impute.truescore}
-\title{True Score Imputation with mice}
+\title{Custom mice imputation function for true score imputation}
 \usage{
 mice.impute.truescore(y, ry, x, wy = NULL, calibration = NULL, ...)
 }
@@ -36,7 +36,7 @@ true score imputation, which will call this custom imputation function
 \code{mice.impute.truescore}. Although possible, this function is not
 meant to be run on its own; see documentation for other \code{mice}
 imputation files, e.g., \code{\link[mice]{mice.impute.pmm}}, for details
-on this usage. Example usage through the mice package is provided in
+on this usage. Example usage through the \code{mice} package is provided in
 Examples below.
 }
 \section{Passing Calibration Information to \code{mice}}{
@@ -57,12 +57,12 @@ are required, in any order:
   maximum likelihood scoring in item response theory. Each
   \code{scoreType} requires specific other elements to be provided
   in \code{calibration} data; see below for these conditional elements.}
-  \item{\code{mean}}{The mean of the score metric from calibration. For example,
-  T scores are calibrated to a mean of 50, so if T scores are used,
-  \code{mean} should be set to \code{50}.}
-  \item{\code{varTS}}{The variance of the score metric from calibration. For
-  example, T scores are calibrated to a standard deviation of 10, so
-  if T scores are used, \code{varTS} should be set to \code{100}.}
+  \item{\code{mean}}{The mean of the score metric from calibration.
+  For example, T scores are calibrated to a mean of 50, so if T scores
+  are used, \code{mean} should be set to \code{50}.}
+  \item{\code{var_ts}}{The variance of the score metric from calibration.
+  For example, T scores are calibrated to a standard deviation of 10, so
+  if T scores are used, \code{var_ts} should be set to \code{100}.}
 }
 
 In addition, each \code{scoreType} requires specific other elements
@@ -81,9 +81,82 @@ to be provided in \code{calibration} data:
 
 \section{Specifying the Predictor Matrix}{
 
-I dunno lol
+Based on (unpublished) simulation results, it seems the best way to specify
+the predictor matrix for use in \code{mice} is for true scores to be
+predicted from all observed variables but \emph{not} to predict other
+missing data from the imputed true scores. This is the default behavior
+when the \code{TSI} function is used, and we recommend, unless further
+research identifies otherwise, that the same be done when using this
+function to interact with \code{mice} directly.
 }
 
 \examples{
-hihi hello
+##############
+# CTT SCORES #
+#add empty (NA) variables to data set to store true scores
+data_ctt_2=data_ctt
+data_ctt_2$TRUE_w=NA
+
+#true score imputation
+set.seed(0)
+mice.data=mice(data_ctt_2,m=2,
+  blocks=list('TRUE_w'),
+  method='truescore',
+  calibration=list(OSNAME='w',
+                   scoreType='CTT',
+                   reliability=0.6,
+                   mean_ts=0,
+                   var_ts=1),
+  predictorMatrix=matrix(c(1,1,0),1,3,byrow=T),
+  printFlag=F,
+  remove.constant=F)
+mice.data
+
+#analyze with imputed true scores
+pool(with(mice.data,lm(TRUE_w~y)))
+
+#compare standard deviations of observed and imputed true scores
+mice.data=complete(mice.data,'all')
+sds=sapply(mice.data,function(d)apply(d,2,sd))
+apply(sds,1,mean)
+
+##############
+# EAP SCORES #
+#add empty (NA) variables to data set to store true scores
+data_eap_2=data_eap
+data_eap_2$Tx=NA
+data_eap_2$Ty=NA
+
+#true score imputation
+set.seed(0)
+mice.data=mice(data_eap_2,m=2,maxit=2,
+  method=c('pmm','pmm','pmm','pmm','pmm',
+           'truescore','truescore'),
+  blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
+              Tx='Tx',Ty='Ty'),
+  blots=list(Tx=list(calibration=list(OSNAME='Fx',
+                                      SENAME='SE.Fx',
+                                      scoreType='EAP',
+                                      mean=50,
+                                      var_ts=100,
+                                      separated=T)),
+             Ty=list(calibration=list(OSNAME='Fy',
+                                      SENAME="SE.Fy",
+                                      scoreType='EAP',
+                                      mean=50,
+                                      var_ts=100,
+                                      separated=T))),
+  predictorMatrix=matrix(c(0,1,1,1,1,0,0,
+                           1,0,1,1,1,0,0,
+                           1,1,0,1,1,0,0,
+                           1,1,1,0,1,0,0,
+                           1,1,1,1,0,0,0,
+                           1,1,1,1,1,0,0,
+                           1,1,1,1,1,0,0),7,7,byrow=T),
+  printFlag=F,
+  remove.constant=F)
+mice.data
+
+#multiple regression with imputed true scores
+pool(with(mice.data,lm(Ty~Tx+m)))
 }
