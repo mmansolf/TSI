@@ -13,10 +13,17 @@ Generates data sets using true score imputation to account for psychometric meas
 We recommend installing the latest development version of this package from Github to ensure use of the latest and greatest version. To do so:
 1. Install the `devtools` package if you haven't. In R, this can be done using the following code:
 `install.packages('devtools')`
-2. Load the `devtools` package:
+2. Load the `devtools` package using the following code:
 `library(devtools)`
-3. Install the `TSI` package using `install_github()`:
-`install_github('TSI')`
+3. Install the `TSI` package using `install_github()` using the following code:
+`devtools::install_github('TSI')`
+Note that `TSI` is not yet on CRAN, so trying to install it with `install.packages()` will not work. This is coming soon!
+
+## Other installation options
+While the above method should work for most users, there are alternatives:
+* The `ghit` library has an analogous `ghit::install_github()` function to that in the `devtools` package
+* Download the package as a .zip file, then run the following code and interactively select the .zip file to install:
+`install.packages(file.choose(), repos = NULL, type = "source")`
 
 # Additional license information
 LICENSE: Creative Commons - Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
