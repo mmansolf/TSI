@@ -13,13 +13,14 @@ Generates data sets using true score imputation to account for psychometric meas
 The following code uses an included data set, `data_eap`, containing two variables containing EAP-generated T scores, `Fx` and `Fy`, and associated standard errors, `SE.Fx` and `SE.Fy`, respectively. This code conducts five imputations with five burn-in iterations per imputation, generating imputed true score variables `Tx` and `Ty`. More details on this example can be found in the vignette, obtained by running `vignette('TSI')` after installing the package.
 ```
 library(TSI)
+set.seed(0)
 mice.data=TSI(data_eap,
-              OSNAMES=c('Fx','Fy'),
-              SENAMES=c('SE.Fx','SE.Fy'),
+              os_names=c('Fx','Fy'),
+              se_names=c('SE.Fx','SE.Fy'),
               metrics='T',
-              scoreTypes='EAP',
+              score_types='EAP',
               separated=T,
-              TSNAMES=c('Tx','Ty'),
+              ts_names=c('Tx','Ty'),
               mice_args=c(m=5,maxit=5,printFlag=F))
 mice.data
 ```
@@ -27,6 +28,43 @@ mice.data
 The resulting `mids` object can be analyzed using convenience functions available for the `mice` package:
 
 ```
+pool(with(mice.data,lm(Ty~Tx+m)))
+```
+
+# Directly calling the `mice` package
+The above code uses a convenience function to generate a call to `mice` to generate the imputations. Instead, one can call `mice` directly, although the function call is more complicated when constructed by hand. As above, see `vignette('TSI')` for more details.
+
+```
+library(TSI)
+set.seed(0)
+mice.data=mice(data_eap_2,m=5,maxit=5,
+  method=c('pmm','pmm','pmm','pmm','pmm',
+           'truescore','truescore'),
+  blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
+              Tx='Tx',Ty='Ty'),
+  blots=list(Tx=list(calibration=list(os_name='Fx',
+                                      se_name='SE.Fx',
+                                      score_type='EAP',
+                                      mean=50,
+                                      var_ts=100,
+                                      separated=T)),
+             Ty=list(calibration=list(os_name='Fy',
+                                      se_name="SE.Fy",
+                                      score_type='EAP',
+                                      mean=50,
+                                      var_ts=100,
+                                      separated=T))),
+  predictorMatrix=matrix(c(0,1,1,1,1,0,0,
+                           1,0,1,1,1,0,0,
+                           1,1,0,1,1,0,0,
+                           1,1,1,0,1,0,0,
+                           1,1,1,1,0,0,0,
+                           1,1,1,1,1,0,0,
+                           1,1,1,1,1,0,0),7,7,byrow=T),
+  printFlag=F,
+  remove.constant=F)
+mice.data
+
 pool(with(mice.data,lm(Ty~Tx+m)))
 ```
 
