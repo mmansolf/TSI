@@ -12,12 +12,12 @@
 #'
 #' @param data Data frame on which to conduct imputation. By default, columns
 #' with missing values which are numeric will be imputed with the \code{pmm}
-#' method from \code{mice}, columns with names in \code{OSNAMES} will be
+#' method from \code{mice}, columns with names in \code{os_names} will be
 #' imputed using true score imputation, and non-numeric columns will be
 #' ignored.
-#' @param OSNAMES Character vector of names of variables in \code{data} on
+#' @param os_names Character vector of names of variables in \code{data} on
 #' which to use true score imputation.
-#' @param scoreTypes Character vector specifying psychometric model(s) used
+#' @param score_types Character vector specifying psychometric model(s) used
 #' for true score imputation. Currently available options are \code{'CTT'}
 #' for classical test theory, \code{'EAP'} for item response theory with
 #' expected a posteriori scoring, and \code{'ML'} for item response theory
@@ -25,49 +25,49 @@
 #' should match how scores were generated, which requires some understanding
 #' of the scoring process; for instance, HealthMeasures instruments, which
 #' include PROMIS, NIH Toolbox, and NeuroQOL measures, use EAP scoring to
-#' generate T scores and therefore \code{scoreTypes='EAP'} would be
+#' generate T scores and therefore \code{score_types='EAP'} would be
 #' appropriate when using these T scores.
-#' @param SENAMES Required for \code{scoreTypes='EAP'} or
-#' \code{scoreTypes='ML'}. Character vector of names of variables in data set
-#' containing standard errors for score variables specified by \code{OSNAMES}.
-#' One variable must be specified for each variable in \code{OSNAMES}. Not
-#' required for \code{scoreTypes='CTT'}.
-#' @param reliability Required for \code{scoreTypes='CTT'}. Numeric vector of
+#' @param se_names Required for \code{score_types='EAP'} or
+#' \code{score_types='ML'}. Character vector of names of variables in data set
+#' containing standard errors for score variables specified by \code{os_names}.
+#' One variable must be specified for each variable in \code{os_names}. Not
+#' required for \code{score_types='CTT'}.
+#' @param reliability Required for \code{score_types='CTT'}. Numeric vector of
 #' reliability estimates, one for each observed score variable in
-#' \code{OSNAMES} referring to the reliability of the corresponding variable
-#' named in \code{OSNAMES}.
+#' \code{os_names} referring to the reliability of the corresponding variable
+#' named in \code{os_names}.
 #' @param metrics Character vector of metrics of true scores for
 #' imputation. Available values are \code{'z'} for z scores (mean 0,
 #' variance 1), \code{'T'} for T scores (mean 50, variance 100), and
 #' \code{'standard'} for standard (IQ metric) scores (mean 100, variance 225).
 #' Either \code{metrics} or both \code{mean} and \code{var_ts} below must be
 #' specified for each variable, with each element referring to the
-#' corresponding variable named in \code{OSNAMES}.
+#' corresponding variable named in \code{os_names}.
 #' @param mean Numeric vector of means of true scores for imputation. Must be
 #' specified if \code{metrics} is not specified.
 #' @param var_ts Numeric vector of variances of true scores for imputation.
 #' Must be specified if \code{metrics} is not specified.
 #' @param separated Logical vector indicating whether, for variables imputed
-#' with \code{scoreTypes='EAP'} or \code{scoreTypes='ML'}, true score
+#' with \code{score_types='EAP'} or \code{score_types='ML'}, true score
 #' imputation uses an average standard error (\code{separated=F}), which runs
 #' faster but doesn't account for differential measurement error of the
 #' observed scores for each respondent, or whether separate standard errors
 #' are used for each value of each observed score (\code{separated=T}), which
 #' runs slower but accounts for differential measurement error.
-#' @param TSNAMES Optional vector of names of true score variables which
-#' will be created. Each element of \code{TSNAMES} denotes the name of the
+#' @param ts_names Optional vector of names of true score variables which
+#' will be created. Each element of \code{ts_names} denotes the name of the
 #' variable which will be created by \code{TSI} based on observed scores from
-#' the corresponding element of \code{OSNAMES}. The default value of
-#' \code{NULL} results in the prefix \code{TRUE_} being prepended to each
-#' element of \code{OSNAMES} when generating the imputed true scores.
+#' the corresponding element of \code{os_names}. The default value of
+#' \code{NULL} results in the prefix \code{true_} being prepended to each
+#' element of \code{os_names} when generating the imputed true scores.
 #' @param mice_args Named list of additional arguments passed to \code{mice}
 #'
 #' @examples
 #' ##############
 #' # CTT SCORES #
 #' mice.data=TSI(data_ctt,
-#'               OSNAMES='w',
-#'               scoreTypes='CTT',
+#'               os_names='w',
+#'               score_types='CTT',
 #'               reliability=0.6,
 #'               mean=0,
 #'               var_ts=1,
@@ -75,7 +75,7 @@
 #' mice.data
 #'
 #' #analyze with imputed true scores
-#' pool(with(mice.data,lm(TRUE_w~y)))
+#' pool(with(mice.data,lm(true_w~y)))
 #'
 #' #compare standard deviations of observed and imputed true scores
 #' mice.data=complete(mice.data,'all')
@@ -86,196 +86,195 @@
 #' # EAP SCORES #
 #' set.seed(0)
 #' mice.data=TSI(data_eap,
-#'               OSNAMES=c('Fx','Fy'),
-#'               SENAMES=c('SE.Fx','SE.Fy'),
+#'               os_names=c('Fx','Fy'),
+#'               se_names=c('SE.Fx','SE.Fy'),
 #'               metrics='T',
-#'               scoreTypes='EAP',
+#'               score_types='EAP',
 #'               separated=T,
-#'               TSNAMES=c('Tx','Ty'),
+#'               ts_names=c('Tx','Ty'),
 #'               mice_args=c(m=5,maxit=5,printFlag=F))
 #' mice.data
 #'
 #' #multiple regression with imputed true scores
 #' pool(with(mice.data,lm(Ty~Tx+m)))
 #' @export
-TSI=function(data,OSNAMES,scoreTypes,
-             SENAMES=NULL,metrics=NULL,mean=NULL,var_ts=NULL,reliability=NULL,
-             separated=rep(T,length(OSNAMES)),TSNAMES=paste0("TRUE_",OSNAMES),
-             mice_args){
-  # data=data.frame(m=1:4,Fx=1,Fy=2,SE.Fx=3,SE.Fy=4)
-  # OSNAMES=c('Fx','Fy')
-  # SENAMES=c('SE.Fx','SE.Fy')
-  # metrics=c('T','T')
-  # scoreTypes=c('EAP','EAP')
-  # mean=NULL
-  # var_ts=NULL
-  # reliability=NULL
-  # separated=c(T,F)
-  # TSNAMES=paste0('TRUE_',OSNAMES)
+TSI=function( #nolint
+  data, os_names, score_types,
+  se_names = NULL, metrics = NULL, mean = NULL, var_ts = NULL, reliability = NULL,
+  separated = rep(T, length(os_names)), ts_names = paste0("true_", os_names),
+  mice_args) {
 
   ###############
   # BLOT CHECKS #
-  #need at least one OSNAME
-  p_to_impute=length(OSNAMES)
-  if(p_to_impute==0) stop('
-Must provide the name of at least one observed score variable to impute as OSNAMES.')
-  args_to_test=setNames(
-    list(list(SENAMES),list(metrics),list(scoreTypes),list(mean),list(var_ts),list(separated)),
-    c('SENAMES','metrics','scoreTypes','mean','var_ts','separated')
+  #need at least one os_name
+  p_to_impute = length(os_names)
+  if (p_to_impute == 0) stop("
+Provide the name of at least one observed score to impute as os_names.")
+  args_to_test = setNames(
+    list(list(se_names), list(metrics), list(score_types), list(mean),
+         list(var_ts), list(separated)),
+    c("se_names", "metrics", "score_types", "mean", "var_ts", "separated")
   )
 
   #test types
-  types_to_test=c('character','character','character','numeric','numeric','logical')
-  for(i in 1:length(args_to_test)){
-    if(!class(args_to_test[[i]][[1]])%in%c('NULL',types_to_test[i])) stop(paste0('
-Expected ',names(args_to_test)[i],' to be of type ',types_to_test[i],' or NULL; was ',class(args_to_test[[i]][[1]]),'.'
+  types_to_test = c("character", "character", "character", "numeric",
+                    "numeric", "logical")
+  for (i in seq_len(length(args_to_test))) {
+    if (!class(args_to_test[[i]][[1]]) %in% c("NULL", types_to_test[i]))
+    stop(paste0("
+Expected ", names(args_to_test)[i], " to be of type ",
+                types_to_test[i], " or NULL; was ",
+                class(args_to_test[[i]][[1]]), "."
     ))
   }
 
   #test lengths
-  for(i in 1:length(args_to_test)){
-    if(!length(args_to_test[[i]][[1]])%in%c(0,1,p_to_impute)) stop(paste0('
-The number of elements in ',names(args_to_test)[i],' should be 1 or match the number of elements in OSNAMES.'
+  for (i in seq_len(length(args_to_test))) {
+    if (!length(args_to_test[[i]][[1]]) %in% c(0, 1, p_to_impute))
+    stop(paste0("
+The number of elements in ",
+                names(args_to_test)[i],
+                " should be 1 or match the number of elements in os_names."
     ))
   }
 
   #stretch lengths if necessary
-  if(length(metrics)==1)metrics=rep(metrics,p_to_impute)
-  if(length(scoreTypes)==1)scoreTypes=rep(scoreTypes,p_to_impute)
-  if(length(mean)==1)mean=rep(mean,p_to_impute)
-  if(length(var_ts)==1)var_ts=rep(var_ts,p_to_impute)
-  if(length(separated)==1)separated=rep(separated,p_to_impute)
+  if (length(metrics) == 1)metrics = rep(metrics, p_to_impute)
+  if (length(score_types) == 1)score_types = rep(score_types, p_to_impute)
+  if (length(mean) == 1)mean = rep(mean, p_to_impute)
+  if (length(var_ts) == 1)var_ts = rep(var_ts, p_to_impute)
+  if (length(separated) == 1)separated = rep(separated, p_to_impute)
 
-  #test length of TSNAMES
-  if(!length(TSNAMES)==length(OSNAMES)) stop('Must provide as many true score names (TSNAMES) as observed score names (OSNAMES), or leave TSNAMES blank and the prefix "TRUE_" will be appended to OSNAMES to name the resulting true scores')
+  #test length of ts_names
+  if (!length(ts_names) == length(os_names))
+    stop("Must provide as many true score names (ts_names) as observed score names (os_names),  or leave ts_names blank and the prefix 'true_' will be appended to os_names to name the resulting true scores")
 
-  #test permissible scoreTypes and metrics
-  if(!all(scoreTypes%in%c('CTT','EAP','ML')))
-    stop("Please specify scoreType from the available types for true score imputation ('CTT', 'EAP', or 'ML')")
+  #test permissible score_types and metrics
+  if (!all(score_types %in% c("CTT", "EAP", "ML")))
+    stop("Please specify score_type from the available types for true score imputation ('CTT', 'EAP', or 'ML')")
 
-  #test permissible scoreTypes and metrics
-  if(!all(metrics%in%c(NULL,NA,'z','T','standard')))
+  #test permissible score_types and metrics
+  if (!all(metrics %in% c(NULL, NA, "z", "T", "standard")))
     stop("Please specify metric from the available metrics for true score imputation ('z', 'T', 'standard')")
 
   #warn if ML is used
-  if(any(scoreTypes%in%c('ML')))
+  if (any(score_types %in% c("ML")))
     stop("Warning: Maximum likelihood (ML) scoring is not recommended due to poor simulation performance. Proceed with caution.")
 
-  for(i in 1:length(scoreTypes)){
+  for (i in seq_len(length(score_types))) {
     #test metrics: either have a metric, or have both mean and var_ts
-    is_null_or_na=function(x) if(!is.null(x)) is.na(x) else is.null(x)
+    is_null_or_na = function(x) if (!is.null(x)) is.na(x) else is.null(x)
 
-    is_null_metric=is_null_or_na(metrics[i])
-    is_null_mean=is_null_or_na(mean[i])
-    is_null_var_ts=is_null_or_na(var_ts[i])
+    is_null_metric = is_null_or_na(metrics[i])
+    is_null_mean = is_null_or_na(mean[i])
+    is_null_var_ts = is_null_or_na(var_ts[i])
 
-    if((is_null_metric & (is_null_mean | is_null_var_ts)) |
-       (!is_null_metric & (!is_null_mean | !is_null_var_ts))) stop(paste0("Problem with variable ",i,": Either assign a metric to each true score variable (e.g., 'T' for T scores) or assign BOTH a mean and var_ts for that variable."))
-    #test that EAP and ML scoring have SENAMES
-    if(scoreTypes[i]%in%c('EAP','ML')){
-      is_null_SENAME=is.null(SENAMES[i]) | is.na(SENAMES[i])
-      if(is_null_SENAME) stop(paste0("Problem with variable ",i,": Each observed score (OSNAME) based on EAP or ML scoring must include a corresponding standard error (SENAMES)."))
-    } else if(scoreTypes[i]=='CTT'){
+    if ((is_null_metric & (is_null_mean | is_null_var_ts)) |
+       (!is_null_metric & (!is_null_mean | !is_null_var_ts))) stop(paste0("Problem with variable ", i, ": Either assign a metric to each true score variable (e.g., 'T' for T scores) or assign BOTH a mean and var_ts for that variable."))
+    #test that EAP and ML scoring have se_names
+    if (score_types[i] %in% c("EAP", "ML")) {
+      is_null_sename = is.null(se_names[i]) | is.na(se_names[i])
+      if (is_null_sename) stop(paste0("Problem with variable ", i, ": Each observed score (os_name) based on EAP or ML scoring must include a corresponding standard error (se_names)."))
+    } else if (score_types[i] == "CTT") {
       #test that CTT have reliability
-      is_null_reliability=is.null(reliability[i]) | is.na(reliability[i])
-      if(is_null_reliability) stop(paste0("Problem with variable ",i,": Each observed score (OSNAME) based on CTT scoring must include a corresponding estimate of reliability."))
+      is_null_reliability = is.null(reliability[i]) | is.na(reliability[i])
+      if (is_null_reliability) stop(paste0("Problem with variable ", i, ": Each observed score (os_name) based on CTT scoring must include a corresponding estimate of reliability."))
     }
   }
 
   ###############
   # DATA CHECKS #
-  #test that all of OSNAMES and SENAMES are in data
-  missing_variables=c(OSNAMES,SENAMES)[which(!c(OSNAMES,SENAMES)%in%names(data))]
-  if(length(missing_variables)>0)
-    stop(paste0("The following OSNAMES and/or SENAMES were not found in the data: ",
-                paste(missing_variables,collapse=", "),'.'))
+  #test that all of os_names and se_names are in data
+  missing_variables = c(os_names, se_names)[which(!c(os_names, se_names) %in% names(data))]
+  if (length(missing_variables) > 0)
+    stop(paste0("The following os_names and/or se_names were not found in the data: ",
+                paste(missing_variables, collapse = ", "), "."))
 
   #test that data is data.frame
-  if(!is.data.frame(data)) stop('Please provide data as data.frame')
+  if (!is.data.frame(data)) stop("Please provide data as data.frame")
 
-  non_numeric_variables=names(data)[which(!sapply(data,class)%in%c('integer','numeric'))]
-  if(length(non_numeric_variables)>0){
+  non_numeric_variables = names(data)[which(!sapply(data, class) %in% c("integer", "numeric"))]
+  if (length(non_numeric_variables) > 0) {
     #test that all observed scores and standard errors are numeric
-    if(any(c(OSNAMES,SENAMES)%in%non_numeric_variables))
+    if (any(c(os_names, se_names) %in% non_numeric_variables))
       stop(paste0("The following observed score and/or standard error variables are not numeric: ",
-                  paste(intersect(non_numeric_variables,c(OSNAMES,SENAMES)),collapse=", "),
-                  '. Please convert them to numeric prior to true score imputation.'))
+                  paste(intersect(non_numeric_variables, c(os_names, se_names)), collapse = ", "),
+                  ". Please convert them to numeric prior to true score imputation."))
     #print warning that non-numeric variables will be ignored
     warning(paste0("The following variables are not numeric and will be ignored during imputation: ",
-                   paste(non_numeric_variables,collapse=", "),
-                   '. This implementation of true score imputation does not allow non-numeric variables in the imputation model.'))
+                   paste(non_numeric_variables, collapse = ", "),
+                   ". This implementation of true score imputation does not allow non-numeric variables in the imputation model."))
   }
 
   #####################
   # ALL DONE; PREPARE #
-  print('Preliminary checks passed for true score imputation! Building call to mice...')
+  print("Preliminary checks passed for true score imputation! Building call to mice...")
 
   #blocks
-  blocks=setNames(names(data),names(data))
+  blocks = setNames(names(data), names(data))
   #method
-  method=rep('pmm',ncol(data))
-  #predictorMatrix
-  predictorMatrix=matrix(1,ncol(data),ncol(data))-diag(ncol(data))
+  method = rep("pmm", ncol(data))
+  #predictor_matrix
+  predictor_matrix = matrix(1, ncol(data), ncol(data)) - diag(ncol(data))
   #drop non_numeric_variables
-  if(length(non_numeric_variables)>0){
-    #blocks=blocks[-which(names(data)%in%non_numeric_variables)]
-    predictorMatrix[which(names(data)%in%non_numeric_variables),]=0
-    predictorMatrix[,which(names(data)%in%non_numeric_variables)]=0
-    method[which(names(data)%in%non_numeric_variables)]=''
+  if (length(non_numeric_variables) > 0) {
+    predictor_matrix[which(names(data) %in% non_numeric_variables), ] = 0
+    predictor_matrix[, which(names(data) %in% non_numeric_variables)] = 0
+    method[which(names(data) %in% non_numeric_variables)] = ""
   }
   #blots
-  blots=list()
-  for(i in 1:length(TSNAMES)){
+  blots = list()
+  for (i in seq_len(length(ts_names))) {
     #initialize and name blot
-    blots[[TSNAMES[i]]]=list()
-    blots[[TSNAMES[i]]]$OSNAME=OSNAMES[i]
-    if(scoreTypes[i]%in%c("EAP","ML")){
-      blots[[TSNAMES[i]]]$SENAME=SENAMES[i]
-    } else if(scoreTypes[i]=='CTT'){
-      blots[[TSNAMES[i]]]$reliability=reliability[i]
+    blots[[ts_names[i]]] = list()
+    blots[[ts_names[i]]]$os_name = os_names[i]
+    if (score_types[i] %in% c("EAP", "ML")) {
+      blots[[ts_names[i]]]$se_name = se_names[i]
+    } else if (score_types[i] == "CTT") {
+      blots[[ts_names[i]]]$reliability = reliability[i]
     }
-    blots[[TSNAMES[i]]]$scoreType=scoreTypes[i]
-    blots[[TSNAMES[i]]]$separated=separated[i]
-    if(!is_null_or_na(metrics[i])){
-      if(metrics[i]=='z'){
-        mean[i]=0
-        var_ts[i]=1
-      } else if(metrics[i]=='T'){
-        mean[i]=50
-        var_ts[i]=100
-      } else if(metrics[i]=='standard'){
-        mean[i]=100
-        var_ts[i]=225
+    blots[[ts_names[i]]]$score_type = score_types[i]
+    blots[[ts_names[i]]]$separated = separated[i]
+    if (!is_null_or_na(metrics[i])) {
+      if (metrics[i] == "z") {
+        mean[i] = 0
+        var_ts[i] = 1
+      } else if (metrics[i] == "T") {
+        mean[i] = 50
+        var_ts[i] = 100
+      } else if (metrics[i] == "standard") {
+        mean[i] = 100
+        var_ts[i] = 225
       }
     }
-    blots[[TSNAMES[i]]]$mean=mean[i]
-    blots[[TSNAMES[i]]]$var_ts=var_ts[i]
+    blots[[ts_names[i]]]$mean = mean[i]
+    blots[[ts_names[i]]]$var_ts = var_ts[i]
   }
   #put into calibration list
-  blots=lapply(blots,function(x)list(calibration=x))
+  blots = lapply(blots, function(x)list(calibration = x))
 
   ############################
   # ADD TS VARIABLES TO DATA #
-  for(n in TSNAMES){
-    data[[n]]=NA
-    blocks[[n]]=n
-    method=c(method,'truescore')
-    predictorMatrix=rbind(predictorMatrix,1) #add rows of 1s; predict TS's from everything
-    if(length(non_numeric_variables)>0){
-      predictorMatrix[,which(names(data)%in%non_numeric_variables)]=0 #except non-numeric variables
+  for (n in ts_names) {
+    data[[n]] = NA
+    blocks[[n]] = n
+    method = c(method, "truescore")
+    predictor_matrix = rbind(predictor_matrix, 1) #add rows of 1s; predict TS's from everything
+    if (length(non_numeric_variables) > 0) {
+      predictor_matrix[, which(names(data) %in% non_numeric_variables)] = 0 #except non-numeric variables
     }
   }
-  for(n in TSNAMES){
-    predictorMatrix=cbind(predictorMatrix,0) #but don't use them to predict anything
+  for (n in ts_names) {
+    predictor_matrix = cbind(predictor_matrix, 0) #but don't use them to predict anything
   }
 
   #######
   # RUN #
-  do.call(mice,c(list(data=data,
-                      method=method,
-                      blocks=blocks,
-                      blots=blots,
-                      predictorMatrix=predictorMatrix,
-                      remove.constant=F),
+  do.call(mice, c(list(data = data,
+                      method = method,
+                      blocks = blocks,
+                      blots = blots,
+                      predictorMatrix = predictor_matrix,
+                      remove.constant = F),
                  mice_args))
 }

@@ -13,7 +13,7 @@ knitr::opts_chunk$set(
   comment = "#>",
   echo = TRUE
 )
-options(digits=3)
+options(digits = 3)
 ```
 
 The `devtools` library can be used to install the `TSI` package directly from Github:
@@ -21,7 +21,7 @@ The `devtools` library can be used to install the `TSI` package directly from Gi
 ```{r setup, message=F, warning=F}
 library(devtools)
 # install_github('mmansolf/TSI')
-load_all('C:/Users/Max/Dropbox/RPackages/TSI')
+load_all("C:/Users/Max/Dropbox/RPackages/TSI")
 library(TSI)
 library(mice)
 ```
@@ -34,32 +34,32 @@ First, let's simulate some data to demonstrate true score imputation for classic
 #######################
 #SIMULATION PARAMETERS#
 set.seed(0)
-n=1000 #sample size
-ratio=0.6 #ratio of true score variance to error variance; squared reliability coefficient
-d=0.5 #mean difference
-meanX=0 #mean of true score
-meanW=0 #mean of observed score
-varX=1 #variance of true score
-varW=1 #variance of observed score
+n = 1000 #sample size
+ratio = 0.6 #ratio of true variance to error variance; squared reliability
+d = 0.5 #mean difference
+mean_x = 0 #mean of true score
+mean_w = 0 #mean of observed score
+var_x = 1 #variance of true score
+var_w = 1 #variance of observed score
 ```
 
 ```{r}
 #################
 # SIMUALTE DATA #
-x1=rnorm(n,meanX,sqrt(varX))
-e1=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
-w1=x1+e1
-x2=rnorm(n,meanX+d*sqrt(varX),sqrt(varX))
-e2=rnorm(n,0,sqrt(varX*(1-ratio)/ratio))
-w2=x2+e2
+x1 = rnorm(n, mean_x, sqrt(var_x))
+e1 = rnorm(n, 0, sqrt(var_x * (1 - ratio) / ratio))
+w1 = x1 + e1
+x2 = rnorm(n, mean_x + d * sqrt(var_x), sqrt(var_x))
+e2 = rnorm(n, 0, sqrt(var_x * (1 - ratio) / ratio))
+w2 = x2 + e2
 ```
 
 Before imputing, notice that we don't actually have a variable to relate `x` to include in an imputation model, only two groups. Let's create a dummy-coded variable `y`, where `0` corresponds to the first group and `1` corresponds to the second group, to create a data set to work with:
 
 ```{r}
-w=c(w1,w2)
-y=c(rep(0,n),rep(1,n))
-data_ctt=data.frame(w,y)
+w = c(w1, w2)
+y = c(rep(0, n), rep(1, n))
+data_ctt = data.frame(w, y)
 head(data_ctt)
 ```
 
@@ -71,86 +71,86 @@ I'll present the imputation code, then explain the pieces:
 
 ```{r}
 set.seed(0)
-mice.data=TSI(data_ctt,
-              OSNAMES='w',
-              scoreTypes='CTT',
-              reliability=ratio,
-              mean=0,
-              var_ts=1,
-              mice_args=list(m=5,printFlag=F))
+mice_data = TSI(data_ctt,
+              os_names = "w",
+              score_types = "CTT",
+              reliability = ratio,
+              mean = 0,
+              var_ts = 1,
+              mice_args = list(m = 5, printFlag = F))
 
-mice.data
+mice_data
 ```
 
 For classical test theory, the following are required:
 
-* `OSNAMES`: Character vector containing the names of the observed scores. Here, there is just one observed score `'w'`.
-* `scoreTypes`: Character vector of models used to generate each score. Here, the score was generated under classical test theory `'CTT'`.
+* `os_names`: Character vector containing the names of the observed scores. Here, there is just one observed score `"w"`.
+* `score_types`: Character vector of models used to generate each score. Here, the score was generated under classical test theory `"CTT"`.
 * `reliability`: Numeric vector of reliability values for each observed score. Here, I copied this from the `ratio` variable defined above.
 * `mean` and `var_ts`: Numeric vectors of means and variances of the underlying true scores. Here, `x` was simulated with a mean of `0` and variance of `1`.
 * `mice_args`: Additional arguments passed to the `mice` function. Here, I'm specifying 5 imputations and to not print the trace output during execution.
 
-Observe that a new variable, `TRUE_w`, was generated as part of this call. This variable contains the imputed true score values. We can quickly look at the first imputation using the `complete` function in the `mice` package:
+Observe that a new variable, `true_w`, was generated as part of this call. This variable contains the imputed true score values. We can quickly look at the first imputation using the `complete` function in the `mice` package:
 
 ```{r}
-head(complete(mice.data))
+head(complete(mice_data))
 ```
 
 ### Trying it yourself
 
-This example is one of the examples available when running `example('TSI')`
+This example is one of the examples available when running `example("TSI")`
 
 ### A couple other options
 
-If true score imputation is required for multiple scores, all such variables must be specified in `OSNAMES`. If these variables share imputation characteristics (`scoreTypes`, `reliability`, `mean`, and/or `var_ts`), a single value can be specified for each, and this input is recycled for all observed scores specified in `OSNAMES`.
+If true score imputation is required for multiple scores, all such variables must be specified in `os_names`. If these variables share imputation characteristics (`score_types`, `reliability`, `mean`, and/or `var_ts`), a single value can be specified for each, and this input is recycled for all observed scores specified in `os_names`.
 
-Instead of specifying `mean` and `var_ts`, another option is to specify the metric of the true score if it is a z score (mean=0, SD=1; `metric='z'`), T-score (mean=50, SD=10; `metric='T'`), or standard score (mean=100, SD=15, `metrics='standard'`). Here's an example, using the z score metric because the underlying `x` has a mean of 0 and SD of 1:
+Instead of specifying `mean` and `var_ts`, another option is to specify the metric of the true score if it is a z score (mean = 0, SD = 1; `metric = "z"`), T-score (mean = 50, SD = 10; `metric = "T"`), or standard score (mean = 100, SD = 15, `metrics = "standard"`). Here's an example, using the z score metric because the underlying `x` has a mean of 0 and SD of 1:
 
 ```{r}
 set.seed(0)
-mice.data=TSI(data_ctt,
-              OSNAMES='w',
-              scoreTypes='CTT',
-              reliability=ratio,
-              metrics='z',
-              mice_args=list(m=5,printFlag=F))
+mice_data = TSI(data_ctt,
+              os_names = "w",
+              score_types = "CTT",
+              reliability = ratio,
+              metrics = "z",
+              mice_args = list(m = 5, printFlag = F))
 
-mice.data
+mice_data
 ```
 
 ## Analyzing the imputed data
 
-Once data are generated using `TSI`, the resulting `r class(mice.data)` object can be analyzed using multiple imputation techniques. Here, we can use the `with` functionality of `mice` to predict `x` from `y`:
+Once data are generated using `TSI`, the resulting `r class(mice_data)` object can be analyzed using multiple imputation techniques. Here, we can use the `with` functionality of `mice` to predict `x` from `y`:
 
 ```{r}
-pool(with(mice.data,lm(TRUE_w~y)))
+pool(with(mice_data, lm(true_w~y)))
 ```
 
 Comparing this result to that from using the observed score `w`:
 
 ```{r}
-pool(with(mice.data,lm(w~y)))
+pool(with(mice_data, lm(w~y)))
 ```
 
-The results are roughly the same, because under classical test theory, the slope relating the mismeasured `x` from the measured `y` is unaffected by the measurement error. One statistic that is affected is the standard deviation of the score. To obtain this, we obtain a `list` of completed data sets `mice.data` by using the `complete` function with `'all'` as the second input,
+The results are roughly the same, because under classical test theory, the slope relating the mismeasured `x` from the measured `y` is unaffected by the measurement error. One statistic that is affected is the standard deviation of the score. To obtain this, we obtain a `list` of completed data sets `mice_data` by using the `complete` function with `"all"` as the second input,
 
 ```{r}
-mice.data=complete(mice.data,'all')
+mice_data = complete(mice_data, "all")
 ```
 
 calculate the standard deviation of each column in each imputed data set, stored as `sds`,
 
 ```{r}
-sds=sapply(mice.data,function(d)apply(d,2,sd))
+sds = sapply(mice_data, function(d)apply(d, 2, sd))
 ```
 
 and calculate the mean standard deviation across imputations:
 
 ```{r}
-apply(sds,1,mean)
+apply(sds, 1, mean)
 ```
 
-The standard deviation of `w` is inflated compared to that of the underlying true score, while the standard deviation of the imputed `TRUE_w` is unbiased.
+The standard deviation of `w` is inflated compared to that of the underlying true score, while the standard deviation of the imputed `true_w` is unbiased.
 
 # Expected a Posteriori Scoring with Two Mismeasured Variables
 
@@ -160,12 +160,12 @@ Because true score imputation can be used in the `mice` package, it can be used 
 
 ```{r}
 set.seed(1)
-x=rnorm(n,0,1)
-m=rnorm(n,0,1)
-y=1+0.4*x+0.6*m+rnorm(n,0,1)
+x = rnorm(n, 0, 1)
+m = rnorm(n, 0, 1)
+y = 1 + 0.4 * x + 0.6 * m + rnorm(n, 0, 1)
 ```
 
-Thus, `y` is related to `m` and `w` by the equation `y=0.4x+0.6m+e`, where `e~N(0,1)`, in a prototypical multiple regression configuration.
+Thus, `y` is related to `m` and `w` by the equation `y = 0.4x + 0.6m + e`, where `e~N(0, 1)`, in a prototypical multiple regression configuration.
 
 Next, I used calibrated item parameters from the NIH Toolbox emotion battery norming study (Kupst et al., 2015) to simulate item responses on the 10-item Perceived Stress Scale for each of `x` and `y`. I then scored these item responses using the same item parameters, yielding a set of T-scores and standard errors (SE's) for each record. These two quantities are provided routinely by the HealthMeasures scoring service, and while the standard errors are more often used in assessing individual change, true score imputation allows them to be used in statistical analysis of data sets with multiple observarions.
 
@@ -183,115 +183,115 @@ The code for imputation with two EAP-scored variables is nearly identical to tha
 
 ```{r}
 set.seed(0)
-mice.data=TSI(data_eap,
-              OSNAMES=c('Fx','Fy'),
-              SENAMES=c('SE.Fx','SE.Fy'),
-              metrics='T',
-              scoreTypes='EAP',
-              separated=T,
-              TSNAMES=c('Tx','Ty'),
-              mice_args=c(m=5,maxit=5,printFlag=F))
+mice_data = TSI(data_eap,
+              os_names = c("Fx", "Fy"),
+              se_names = c("SE.Fx", "SE.Fy"),
+              metrics = "T",
+              score_types = "EAP",
+              separated = T,
+              ts_names = c("Tx", "Ty"),
+              mice_args = c(m = 5, maxit = 5, printFlag = F))
 
-mice.data
+mice_data
 
-head(complete(mice.data))
+head(complete(mice_data))
 ```
 
 A few differences:
 
-* Two new variables were created: `Tx` and `Ty`. These names were specified using the optional `TSNAMES` input to `TSI`, which works as follows:
-    + If `TSNAMES` is not specified, the prefix `'TRUE_'` is prepended to each of `OSNAMES` to produce the names of the resulting imputed true score variables.
-    + If `TSNAMES` is specified, these names are used instead, with each element of `TSNAMES` denoting the name of the imputed true score variable to be generated from the respective variable in `OSNAMES`.
-* Two variables are specified in `OSNAMES` because both `Fx` and `Fy` are T scores.
-* The character vector `SENAMES`, which contains the names of the standard error variables corresponding to each observed score in `OSNAMES`, must be specified for EAP scores and have the same length as `OSNAMES`.
+* Two new variables were created: `Tx` and `Ty`. These names were specified using the optional `ts_names` input to `TSI`, which works as follows:
+    + If `ts_names` is not specified, the prefix `"TRUE_"` is prepended to each of `os_names` to produce the names of the resulting imputed true score variables.
+    + If `ts_names` is specified, these names are used instead, with each element of `ts_names` denoting the name of the imputed true score variable to be generated from the respective variable in `os_names`.
+* Two variables are specified in `os_names` because both `Fx` and `Fy` are T scores.
+* The character vector `se_names`, which contains the names of the standard error variables corresponding to each observed score in `os_names`, must be specified for EAP scores and have the same length as `os_names`.
 * A `T`-score metric was used, consistent with how the Perceived Stress Scale is scored in the NIH Toolbox.
-* `scoreTypes` contains `'EAP'` because NIH Toolbox scores the Percieved Stress Scale using EAP scoring
-* The extra argument `separated` specifies whether true score imputation uses an average standard error (`separated=F`), which runs faster but doesn't account for differential measurement error of the observed scores for each respondent, or whether separate standard errors are used for each value of each observed score (`separated=T`), which runs slower but accounts for differential measurement error.
+* `score_types` contains `"EAP"` because NIH Toolbox scores the Percieved Stress Scale using EAP scoring
+* The extra argument `separated` specifies whether true score imputation uses an average standard error (`separated = F`), which runs faster but doesn't account for differential measurement error of the observed scores for each respondent, or whether separate standard errors are used for each value of each observed score (`separated = T`), which runs slower but accounts for differential measurement error.
 
-Note that although there are two variables measured with error (`Fx` and `Fy`), only one value is provided for `metrics`, `scoreTypes`, and `separated`, resulting in these settings being applied to all variables measured with error.
+Note that although there are two variables measured with error (`Fx` and `Fy`), only one value is provided for `metrics`, `score_types`, and `separated`, resulting in these settings being applied to all variables measured with error.
 
 ## Analyzing the imputed data
 
-Once data are generated using `TSI`, the resulting `r class(mice.data)` object can once again be analyzed using multiple imputation techniques. For reference, estimating this model using the true scores, with no missing data, yields:
+Once data are generated using `TSI`, the resulting `r class(mice_data)` object can once again be analyzed using multiple imputation techniques. For reference, estimating this model using the true scores, with no missing data, yields:
 
 ```{r}
-lm(y~x+m)
+lm(y~x + m)
 ```
 
 Using the observed T scores yields:
 
 ```{r}
-pool(with(mice.data,lm(Fy~Fx+m)))
+pool(with(mice_data, lm(Fy~Fx + m)))
 ```
 
-Observe that the regression coefficient associated with `Fx`, the T-score for `x`, is between 0 and 1, because both T scores are on the same metric; therefore, this estimate can be directly compared to that from the true, complete data above. In contrast, the `m` variable was not linearly transformed and therefore this estimated coefficient should be divided by 10 because the SD of T scores is 10. Placing this estimate back on the original metric by dividing by 10 yields `r round(pool(with(mice.data,lm(Fy~Fx+m)))$pooled[3,'estimate']/10,3)`. Both regression coefficients are biased.
+Observe that the regression coefficient associated with `Fx`, the T-score for `x`, is between 0 and 1, because both T scores are on the same metric; therefore, this estimate can be directly compared to that from the true, complete data above. In contrast, the `m` variable was not linearly transformed and therefore this estimated coefficient should be divided by 10 because the SD of T scores is 10. Placing this estimate back on the original metric by dividing by 10 yields `r round(pool(with(mice_data, lm(Fy~Fx + m)))$pooled[3, "estimate"]/10, 3)`. Both regression coefficients are biased.
 
 Finally, using true score imputation yields:
 
 ```{r}
-pool(with(mice.data,lm(Ty~Tx+m)))
+pool(with(mice_data, lm(Ty~Tx + m)))
 ```
 
 Bias has been substantially reduced, and the fractions of missing information `fmi` now represent both information lost to missingness and information lost to measurement error.
 
 ### Trying it yourself
 
-This example is one of the examples available when running `example('TSI')`
+This example is one of the examples available when running `example("TSI")`
 
-# Calling the `mice` Function Directly with `method='truescore'`
+# Calling the `mice` Function Directly with `method = "truescore"`
 
-The `TSI` function generates a call to the `mice` function, but the `mice` function can also be called directly to perform true score imputation. The core of the `TSI` package is a function named `mice.impute.truescore` which can be called from the `mice` package by setting `method='truescore'` for each variable to be imputed using this method. These calls can get complicated, so for most purposes we hope that the `TSI` function can provide a convenient means to conduct true score imputation, but when an analyst needs to modify this call, they can do so by working with `mice` directly.
+The `TSI` function generates a call to the `mice` function, but the `mice` function can also be called directly to perform true score imputation. The core of the `TSI` package is a function named `mice.impute.truescore` which can be called from the `mice` package by setting `method = "truescore"` for each variable to be imputed using this method. These calls can get complicated, so for most purposes we hope that the `TSI` function can provide a convenient means to conduct true score imputation, but when an analyst needs to modify this call, they can do so by working with `mice` directly.
 
 ## Classical test theory
 
 One convenience provided by the `TSI` function is that it creates the true score variables automatically. When using `mice` directly, one must first add empty (all `NA` values) variables to the data set corresponding to the true scores:
 
 ```{r}
-data_ctt_2=data_ctt
-data_ctt_2$TRUE_w=NA
+data_ctt_2 = data_ctt
+data_ctt_2$true_w = NA
 ```
 
-Then, the `mice` function is called with `method='truescore'`:
+Then, the `mice` function is called with `method = "truescore"`:
 
 ```{r}
 set.seed(0)
-mice.data=mice(data_ctt_2,m=5,
-               blocks=list('TRUE_w'),
-               method='truescore',
-               calibration=list(OSNAME='w',
-                                scoreType='CTT',
-                                reliability=ratio,
-                                mean_ts=meanX,
-                                var_ts=varX),
-               predictorMatrix=matrix(c(1,1,0),1,3,byrow=T),
-               printFlag=F,
-               remove.constant=F)
-mice.data
+mice_data = mice(data_ctt_2, m = 5,
+               blocks = list("true_w"),
+               method = "truescore",
+               calibration = list(os_name = "w",
+                                score_type = "CTT",
+                                reliability = ratio,
+                                mean_ts = mean_x,
+                                var_ts = var_x),
+               predictorMatrix = matrix(c(1, 1, 0), 1, 3, byrow = T),
+               printFlag = F,
+               remove.constant = F)
+mice_data
 ```
 
 A few notes:
 
 * Each set of imputed variables must be specificed as a block using the `blocks` argument, which contains a list of vectors with variable names per block.
-* Each block must have a matching `method` listed under the `method` argument; here, we're only using true score imputation, so this is simply `'truescore'`.
-* The flag `remove.constant=F` is needed to prevent `mice` from automatically discarding the true score variable `TRUE_w` for containing only `NA` values.
+* Each block must have a matching `method` listed under the `method` argument; here, we're only using true score imputation, so this is simply `"truescore"`.
+* The flag `remove.constant = F` is needed to prevent `mice` from automatically discarding the true score variable `true_w` for containing only `NA` values.
 * Although not necessary for this example, we specified a `predictorMatrix`, where each row corresponds to a `block` and each column indicates whether the corresponding variable in the data set is included (`1`) or not (`0`) in the imputation model.
 For more information on these inputs, see the documentation for the `mice` function at `?mice`. Lastly:
 * Calibration information, including reliability and the mean and variances of true and observed scores, must be specified in an additional argument named `calibration`. The elements of the list for classical test theory must be the following, in any order, and all must be named as follows:
-    + `OSNAME` (character vector of length one): Name of the observed score variable in the data set.
-    + `scoreType` (character vector of length one): `'CTT'` for classical test theory.
+    + `os_name` (character vector of length one): Name of the observed score variable in the data set.
+    + `score_type` (character vector of length one): `"CTT"` for classical test theory.
     + `reliability` (numeric scalar or vector with length equal to `nrow(data)`: An estimate of the reliability of the observed scores as measures of the true score. If a scalar is provided, the same reliability is assumed for all values of the observed score.
     + `mean_ts` and `var_ts` (numeric scalars): Mean and variance of true scores, respectively, specified as in the `TSI` function. Note that specifying `metric` as a shortcut is not available when using `mice` directly.
 
-The resulting `mice.data` object is the same, imputation error notwithstanding, from that created in the classical test theory example above:
+The resulting `mice_data` object is the same, imputation error notwithstanding, from that created in the classical test theory example above:
 
 ```{r}
-pool(with(mice.data,lm(w~y)))
+pool(with(mice_data, lm(w~y)))
 
-pool(with(mice.data,lm(TRUE_w~y)))
+pool(with(mice_data, lm(true_w~y)))
 
-mice.data=complete(mice.data,'all')
-sds=sapply(mice.data,function(d)apply(d,2,sd))
-apply(sds,1,mean)
+mice_data = complete(mice_data, "all")
+sds = sapply(mice_data, function(d)apply(d, 2, sd))
+apply(sds, 1, mean)
 ```
 
 ## Expected a posteriori scoring for item response theory
@@ -299,42 +299,43 @@ apply(sds,1,mean)
 For EAP scores, we once again need to add empty true score variables to the data set manually:
 
 ```{r}
-data_eap_2=data_eap
-data_eap_2$Tx=NA
-data_eap_2$Ty=NA
+data_eap_2 = data_eap
+data_eap_2$Tx = NA #nolint
+data_eap_2$Ty = NA #nolint
 ```
 
 Then, we need a more complicated call to `mice`:
 
 ```{r}
 set.seed(0)
-mice.data=mice(data_eap_2,m=5,maxit=5,
-               method=c('pmm','pmm','pmm','pmm','pmm',
-                        'truescore','truescore'),
-               blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
-                           Tx='Tx',Ty='Ty'),
-               blots=list(Tx=list(calibration=list(OSNAME='Fx',
-                                                   SENAME='SE.Fx',
-                                                   scoreType='EAP',
-                                                   mean=50,
-                                                   var_ts=100,
-                                                   separated=T)),
-                          Ty=list(calibration=list(OSNAME='Fy',
-                                                   SENAME="SE.Fy",
-                                                   scoreType='EAP',
-                                                   mean=50,
-                                                   var_ts=100,
-                                                   separated=T))),
-               predictorMatrix=matrix(c(0,1,1,1,1,0,0,
-                                        1,0,1,1,1,0,0,
-                                        1,1,0,1,1,0,0,
-                                        1,1,1,0,1,0,0,
-                                        1,1,1,1,0,0,0,
-                                        1,1,1,1,1,0,0,
-                                        1,1,1,1,1,0,0),7,7,byrow=T),
-               printFlag=F,
-               remove.constant=F)
-mice.data
+mice_data = mice(data_eap_2, m = 5, maxit = 5,
+               method = c("pmm", "pmm", "pmm", "pmm", "pmm",
+                        "truescore", "truescore"),
+               blocks = list(Fx = "Fx", Fy = "Fy",
+                             SE.Fx = "SE.Fx", SE.Fy = "SE.Fy", m = "m",
+                           Tx = "Tx", Ty = "Ty"),
+               blots = list(Tx = list(calibration = list(os_name = "Fx",
+                                                   se_name = "SE.Fx",
+                                                   score_type = "EAP",
+                                                   mean = 50,
+                                                   var_ts = 100,
+                                                   separated = T)),
+                          Ty = list(calibration = list(os_name = "Fy",
+                                                   se_name = "SE.Fy",
+                                                   score_type = "EAP",
+                                                   mean = 50,
+                                                   var_ts = 100,
+                                                   separated = T))),
+               predictorMatrix = matrix(c(0, 1, 1, 1, 1, 0, 0,
+                                        1, 0, 1, 1, 1, 0, 0,
+                                        1, 1, 0, 1, 1, 0, 0,
+                                        1, 1, 1, 0, 1, 0, 0,
+                                        1, 1, 1, 1, 0, 0, 0,
+                                        1, 1, 1, 1, 1, 0, 0,
+                                        1, 1, 1, 1, 1, 0, 0), 7, 7, byrow = T),
+               printFlag = F,
+               remove.constant = F)
+mice_data
 ```
 
 A few extra things to note:
@@ -345,4 +346,4 @@ A few extra things to note:
 
 ### Trying it yourself
 
-These examples are both available when running `example('mice.impute.truescore')`
+These examples are both available when running `example("mice.impute.truescore")`

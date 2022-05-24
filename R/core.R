@@ -22,14 +22,14 @@
 #' are required, in any order:
 #'
 #' \describe{
-#'   \item{\code{OSNAME}}{Name of the variable in the data set containing the
+#'   \item{\code{os_name}}{Name of the variable in the data set containing the
 #'   observed scores used for true score imputation}
-#'   \item{\code{scoreType}}{Type of score provided. Current options are
+#'   \item{\code{score_type}}{Type of score provided. Current options are
 #'   \code{'CTT'}, corresponding to the classical test theory model of
 #'   reliability; \code{'EAP'}, corresponding to expected a posteriori
 #'   scoring in item response theory; and \code{'ML'}, corresponding to
 #'   maximum likelihood scoring in item response theory. Each
-#'   \code{scoreType} requires specific other elements to be provided
+#'   \code{score_type} requires specific other elements to be provided
 #'   in \code{calibration} data; see below for these conditional elements.}
 #'   \item{\code{mean}}{The mean of the score metric from calibration.
 #'   For example, T scores are calibrated to a mean of 50, so if T scores
@@ -39,15 +39,15 @@
 #'   if T scores are used, \code{var_ts} should be set to \code{100}.}
 #' }
 #'
-#' In addition, each \code{scoreType} requires specific other elements
+#' In addition, each \code{score_type} requires specific other elements
 #' to be provided in \code{calibration} data:
 #'
 #' \describe{
-#'   \item{\code{SENAME}}{Required if \code{scoreType == 'EAP'} or
-#'   \code{scoreType == 'ML'}. Name of the variable in the data set
+#'   \item{\code{se_name}}{Required if \code{score_type == 'EAP'} or
+#'   \code{score_type == 'ML'}. Name of the variable in the data set
 #'   containing the standard error estimates of the observed scores
-#'   provided in \code{OSNAME}.}
-#'   \item{\code{reliability}}{Required if \code{scoreType == 'CTT'}.
+#'   provided in \code{os_name}.}
+#'   \item{\code{reliability}}{Required if \code{score_type == 'CTT'}.
 #'   Reliability estimate denoting the ratio of true score to
 #'   observed score variance, as estimated from calibration.}
 #' }
@@ -73,8 +73,8 @@
 #' mice.data=mice(data_ctt_2,m=5,
 #'   blocks=list('TRUE_w'),
 #'   method='truescore',
-#'   calibration=list(OSNAME='w',
-#'                    scoreType='CTT',
+#'   calibration=list(os_name='w',
+#'                    score_type='CTT',
 #'                    reliability=0.6,
 #'                    mean_ts=0,
 #'                    var_ts=1),
@@ -105,15 +105,15 @@
 #'            'truescore','truescore'),
 #'   blocks=list(Fx="Fx",Fy="Fy",SE.Fx="SE.Fx",SE.Fy="SE.Fy",m="m",
 #'               Tx='Tx',Ty='Ty'),
-#'   blots=list(Tx=list(calibration=list(OSNAME='Fx',
-#'                                       SENAME='SE.Fx',
-#'                                       scoreType='EAP',
+#'   blots=list(Tx=list(calibration=list(os_name='Fx',
+#'                                       se_name='SE.Fx',
+#'                                       score_type='EAP',
 #'                                       mean=50,
 #'                                       var_ts=100,
 #'                                       separated=T)),
-#'              Ty=list(calibration=list(OSNAME='Fy',
-#'                                       SENAME="SE.Fy",
-#'                                       scoreType='EAP',
+#'              Ty=list(calibration=list(os_name='Fy',
+#'                                       se_name="SE.Fy",
+#'                                       score_type='EAP',
 #'                                       mean=50,
 #'                                       var_ts=100,
 #'                                       separated=T))),
@@ -143,15 +143,15 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   score_add = calibration$mean
   score_mult = sqrt(calibration$var_ts)
 
-  w = (x[, colnames(x) == calibration$OSNAME] - score_add) / score_mult
-  se_w = x[, colnames(x) == calibration$SENAME] / score_mult
-  xdata = x[, which(!colnames(x) %in% c(calibration$OSNAME,
-                                        calibration$SENAME))]
+  w = (x[, colnames(x) == calibration$os_name] - score_add) / score_mult
+  se_w = x[, colnames(x) == calibration$se_name] / score_mult
+  xdata = x[, which(!colnames(x) %in% c(calibration$os_name,
+                                        calibration$se_name))]
   if (!is.data.frame(xdata)) {
     xdata = data.frame(xdata)
     names(xdata) = colnames(x)[
-      which(!colnames(x) %in% c(calibration$OSNAME,
-                                calibration$SENAME))]
+      which(!colnames(x) %in% c(calibration$os_name,
+                                calibration$se_name))]
   }
   xdata = as.matrix(xdata)
   # filter only to cases with data on w
@@ -163,15 +163,15 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   if (!is.matrix(xdata)) {
     xdata = data.frame(xdata)
     names(xdata) = colnames(x)[
-      which(!colnames(x) %in% c(calibration$OSNAME,
-                                calibration$SENAME))]
+      which(!colnames(x) %in% c(calibration$os_name,
+                                calibration$se_name))]
   }
   xdata = as.matrix(xdata)
   nsample = length(which_2impute)
 
   ######################################################
   # DEFINE OBSERVED SCORE VARIANCE BASED ON SCORE TYPE #
-  if (calibration$scoreType == "CTT") {
+  if (calibration$score_type == "CTT") {
     # mean is easy; same as OS mean
     calibration$mean_os = mean(w, na.rm = T)
     calibration$mean_ts = calibration$mean_os
@@ -183,7 +183,7 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
     calibration$var_ts = calibration$var_os - var_e
     # compute reliability for our data
     calibration$reliability = calibration$var_ts / calibration$var_os
-  } else if (calibration$scoreType == "EAP") {
+  } else if (calibration$score_type == "EAP") {
     # Lord, 1986, but given for normal prior.
     i_eap2mle = 1 / (se_w^2) - 1
 
@@ -215,7 +215,7 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
         any(calibration$var_os < 0) |
         any(calibration$reliability < 0))
       stop("help")
-  } else if (calibration$scoreType == "ML") {
+  } else if (calibration$score_type == "ML") {
     calibration$var_os = var(w, na.rm = T)
     calibration$mean_os = mean(w, na.rm = T)
     calibration$mean_ts = calibration$mean_os
