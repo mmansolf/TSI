@@ -20,7 +20,7 @@ The `devtools` library can be used to install the `TSI` package directly from Gi
 
 ```{r setup, message=F, warning=F}
 library(devtools)
-# install_github('mmansolf/TSI')
+install_github('mmansolf/TSI')
 load_all("C:/Users/Max/Dropbox/RPackages/TSI")
 library(TSI)
 library(mice)
