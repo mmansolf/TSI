@@ -1,37 +1,75 @@
 prepare_mem_param <- function(calibdata, wdata, n) {
-  # bring in calibration parameters
-  ratio = c(calibdata$reliability)
-  var_os = c(calibdata$var_os)
-  var_ts = c(calibdata$var_ts)
-  mean_os = c(calibdata$mean_os)
-  mean_ts = c(calibdata$mean_ts)
-  # calculate slope
-  beta1 = sqrt(ratio * var_ts / var_os)
-  # calculate residual variance
-  sigmasq = (1 - ratio) * var_ts
-  # calculate intercept
-  beta0 = mean_ts - mean_os * beta1
+  if(calibdata$score_type%in%c('CTT','ML','EAP')){
+    # bring in calibration parameters
+    ratio = c(calibdata$reliability)
+    var_os = c(calibdata$var_os)
+    var_ts = c(calibdata$var_ts)
+    mean_os = c(calibdata$mean_os)
+    mean_ts = c(calibdata$mean_ts)
+    # calculate slope
+    beta1 = sqrt(ratio * var_ts / var_os)
 
-  # Draw mux from normal distribution
-  tmp = rnorm(1)
-  mean_os_obs = mean_os + sqrt(mean(var_os) / length(wdata)) * tmp
-  # Draw sigmaxsq from inverse chi-square
-  # distribution with df = (n-1) <- originally 2?
-  var_os_obs = var_os * (length(wdata) - 1) / rchisq(1, length(wdata) - 1)
+    # calculate residual variance
+    sigmasq = (1 - ratio) * var_ts
+    # calculate intercept
+    beta0 = mean_ts - mean_os * beta1
 
-  # define parameter structure to return
-  param = data.frame(beta0 = beta0, beta1 = beta1,
-                     sigmasq = sigmasq, mean = mean_os_obs,
-                     var_os = var_os_obs)
+    # Draw mux from normal distribution
+    tmp = rnorm(1)
+    mean_os_obs = mean_os + sqrt(mean(var_os) / length(wdata)) * tmp
+    # Draw sigmaxsq from inverse chi-square
+    # distribution with df = (n-1) <- originally 2?
+    var_os_obs = var_os * (length(wdata) - 1) / rchisq(1, length(wdata) - 1)
 
-  # shrink it
-  param_shrunk = unique(param)
-  param = as.matrix(param)
-  for (i in seq_len(nrow(param_shrunk))) {
-    rownames(param_shrunk)[i] =
-      paste(which(rowSums(
-        param != matrix(param_shrunk[i, ], nrow(param), 5, byrow = T)) == 0),
-        collapse = ",")
+    # define parameter structure to return
+    param = data.frame(beta0 = beta0, beta1 = beta1,
+                       sigmasq = sigmasq, mean = mean_os_obs,
+                       var_os = var_os_obs)
+
+    # shrink it
+    param_shrunk = unique(param)
+    param = as.matrix(param)
+    for (i in seq_len(nrow(param_shrunk))) {
+      rownames(param_shrunk)[i] =
+        paste(which(rowSums(
+          param != matrix(param_shrunk[i, ], nrow(param), 5, byrow = T)) == 0),
+          collapse = ",")
+    }
+
+  } else if(calibdata$score_type=='crosswalk'){
+    #######################
+    # OLD CROSSWALK STUFF #
+    # bring in calibration parameters
+    ratio = c(calibdata$linked_obs_cor)
+    var_os = c(calibdata$var_os)
+    var_ts = c(calibdata$var_ts)
+    mean_os = c(calibdata$mean_os)
+    mean_ts = c(calibdata$mean_ts)
+
+    # Draw mux from normal distribution
+    tmp = rnorm(1)
+    mean_os_obs = mean_os + sqrt(mean(var_os) / length(wdata)) * tmp
+    # Draw sigmaxsq from inverse chi-square
+    # distribution with df = (n-1) <- originally 2?
+    var_os_obs = var_os * (length(wdata) - 1) / rchisq(1, length(wdata) - 1)
+
+    #rse calculation; le CTT faec
+    sigsq=1-ratio^2
+
+    #no longer cheating!
+    param = data.frame(beta0=0,beta1=ratio,sigmasq=sigsq
+                       ,
+                       mean = mean_os_obs,var_os = var_os_obs)
+
+    # shrink it
+    param_shrunk = unique(param)
+    param = as.matrix(param)
+    for (i in seq_len(nrow(param_shrunk))) {
+      rownames(param_shrunk)[i] =
+        paste(which(rowSums(
+          param != matrix(param_shrunk[i, ], nrow(param), 5, byrow = T)) == 0),
+          collapse = ",")
+    }
   }
 
   # return it; we're done
@@ -39,7 +77,7 @@ prepare_mem_param <- function(calibdata, wdata, n) {
 }
 # Draw parameters from their predictive distribution
 # based on the main study data.
-gen_multivar_regre_param <- function(maindata, n, p) {
+gen_multivar_regre_param <- function(maindata, calibdata, n, p) {
   maindata = as.matrix(na.omit(as.data.frame(maindata)))
   n = nrow(maindata)
   ndraw = 1
@@ -138,20 +176,16 @@ sweep <- function(matrix_on_w) {
 }
 
 # Create imputed values for unobserved covariate X
-generate_missing_value <- function(param, maindata) {
+generate_missing_value <- function(param, maindata, calibdata) {
   nsample = nrow(maindata)
   nparam = ncol(param)
   rowsets = rownames(param)
   rownames(param) = NULL
   # test whether the estimate of the residual variance
-  # is negative, and display a warning message
+  # is negative, sets to zero if so
   if (any(param[, nparam] < 0)) {
     percent_neg_vars = round(mean(param[, nparam] < 0), 3) * 100
     if(percent_neg_vars == '0') percent_neg_vars = '<0.1'
-    print(sprintf("%s", paste0(
-      "Estimated residual variance of mismeasured covariate is negative for ",
-      percent_neg_vars,
-      "% of cases; these estimates were set to zero for imputation.")))
     param[param[, nparam] < 0, nparam] = 0
   }
   # fill in matrix to collapse
@@ -159,8 +193,8 @@ generate_missing_value <- function(param, maindata) {
   for (iset in seq_len(nrow(param))) {
     rows_iset = as.numeric(unlist(strsplit(rowsets[iset], ",", fixed = T)))
     matrix_to_collapse[rows_iset, ] = matrix(param[iset, 1:(nparam)],
-                                           length(rows_iset), nparam,
-                                           byrow = T)
+                                             length(rows_iset), nparam,
+                                             byrow = T)
   }
   # matrix operations
   matrix_to_collapse[, 2:(nparam - 1)] =
@@ -182,7 +216,7 @@ miec <- function(maindata, calibdata, ncalib, nsample, m, n, k, s) {
     mem_param = prepare_mem_param(calibdata, maindata[, 1], ncalib)
     # Step-2: draw parameters by regressing (Y, Z) on W
     #         based on main interested 'disease' model
-    dm_param = gen_multivar_regre_param(maindata, nsample, p)
+    dm_param = gen_multivar_regre_param(maindata, calibdata, nsample, p)
     # Step-4: creating sweeping matrix on W by using parameters
     #         obtained from step 1-3 and filling estimated covariance
     #         parameter between U and X given W
@@ -193,7 +227,7 @@ miec <- function(maindata, calibdata, ncalib, nsample, m, n, k, s) {
     # Step-6: generate random draw for unknown X
     #         from its posterior distribution, given W and Y
     for (n_i in seq_len(n)) {
-      second_stage_draw_x = generate_missing_value(impmodel_param, maindata)
+      second_stage_draw_x = generate_missing_value(impmodel_param, maindata, calibdata)
       two_stage_mi_imputed_x = cbind(two_stage_mi_imputed_x,
                                      second_stage_draw_x)
     }
@@ -202,5 +236,9 @@ miec <- function(maindata, calibdata, ncalib, nsample, m, n, k, s) {
   # Output data with Y, Z, and multiply imputed X,
   # where maindata[,P+1] = U(Y,Z)
   two_stage_mi_imputed_data = two_stage_mi_imputed_x
+  #drop where existing values exist
+  if(!is.null(calibdata$existing)) two_stage_mi_imputed_data=ifelse(!is.na(calibdata$existing),
+                                                                    calibdata$existing,two_stage_mi_imputed_data)
+
   return(two_stage_mi_imputed_data)
 }

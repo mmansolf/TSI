@@ -145,13 +145,17 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
 
   w = (x[, colnames(x) == calibration$os_name] - score_add) / score_mult
   se_w = x[, colnames(x) == calibration$se_name] / score_mult
-  xdata = x[, which(!colnames(x) %in% c(calibration$os_name,
-                                        calibration$se_name))]
+  lo_w = x[, colnames(x) == calibration$linked_obs_cor]
+  me_model_variables=c(calibration$os_name,
+                       calibration$se_name)
+  if(is.character(calibration$linked_obs_cor)){
+    me_model_variables=c(me_model_variables,calibration$linked_obs_cor)
+  }
+  xdata = x[, which(!colnames(x) %in% me_model_variables)]
   if (!is.data.frame(xdata)) {
     xdata = data.frame(xdata)
     names(xdata) = colnames(x)[
-      which(!colnames(x) %in% c(calibration$os_name,
-                                calibration$se_name))]
+      which(!colnames(x) %in% me_model_variables)]
   }
   xdata = as.matrix(xdata)
   # filter only to cases with data on w
@@ -163,8 +167,7 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   if (!is.matrix(xdata)) {
     xdata = data.frame(xdata)
     names(xdata) = colnames(x)[
-      which(!colnames(x) %in% c(calibration$os_name,
-                                calibration$se_name))]
+      which(!colnames(x) %in% me_model_variables)]
   }
   xdata = as.matrix(xdata)
   nsample = length(which_2impute)
@@ -243,6 +246,16 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
         any(calibration$var_os < 0) |
         any(calibration$reliability < 0))
       stop("help")
+  } else if (calibration$score_type == "crosswalk") {
+    ###############
+    # CTT VARIANT #
+    # mean is easy; same as OS mean
+    calibration$mean_os = mean(w, na.rm = T)
+    # get observed score variance from data
+    calibration$var_os = rep(var(w, na.rm = T), length(w))
+    if(is.character(calibration$linked_obs_cor)){
+      calibration$linked_obs_cor=lo_w
+    }
   }
   # make it a vector
   if (length(calibration$var_os) == 1)
@@ -257,7 +270,6 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   #N: number of second stage draws
   #K: number of parameters of interest
   #S: number of covariates
-
   imputed = miec(maindata = cbind(w, xdata),
                  calibdata = calibration,
                  ncalib = Inf, nsample = nsample,
@@ -265,5 +277,17 @@ mice.impute.truescore = function(y, ry, x, wy = NULL, calibration = NULL, ...) {
   # add NA's back in
   out = rep(NA, length(y))
   out[which_2impute] = imputed * score_mult + score_add
+  #crosswalk edition: Winsorize to crosswalk bounds
+  if(calibration$score_type == "crosswalk"){
+    #if any existing, clear out those
+    if(!is.null(calibration$existing)) out=out[which(is.na(calibration$existing))]
+    #truncate if specified
+    if(calibration$truncate){
+      out=ifelse(out>max(calibration$crosswalk[,2]),max(calibration$crosswalk[,2]),
+                 ifelse(out<min(calibration$crosswalk[,2]),min(calibration$crosswalk[,2]),
+                        out))
+    }
+  }
+
   out
 }

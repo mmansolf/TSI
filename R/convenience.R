@@ -60,6 +60,11 @@
 #' the corresponding element of \code{os_names}. The default value of
 #' \code{NULL} results in the prefix \code{true_} being prepended to each
 #' element of \code{os_names} when generating the imputed true scores.
+#' @param crosswalk Required for \code{score_types='crosswalk'}. Data frame
+#' with three columns, in order: (1) source variable, (2) destination
+#' variable, and (3) standard error of linking for target variable. Source
+#' (1) and destination (2) variable names must match those specified in
+#' \code{os_names} and \code{ts_names}, respectively.
 #' @param mice_args Named list of additional arguments passed to \code{mice}
 #'
 #' @examples
@@ -101,6 +106,7 @@
 TSI=function( #nolint
   data, os_names, score_types,
   se_names = NULL, metrics = NULL, mean = NULL, var_ts = NULL, reliability = NULL,
+  linked_obs_cor = NULL, truncate = NULL,
   separated = rep(T, length(os_names)), ts_names = paste0("true_", os_names),
   mice_args) {
 
@@ -121,21 +127,21 @@ Provide the name of at least one observed score to impute as os_names.")
                     "numeric", "logical")
   for (i in seq_len(length(args_to_test))) {
     if (!class(args_to_test[[i]][[1]]) %in% c("NULL", types_to_test[i]))
-    stop(paste0("
+      stop(paste0("
 Expected ", names(args_to_test)[i], " to be of type ",
-                types_to_test[i], " or NULL; was ",
-                class(args_to_test[[i]][[1]]), "."
-    ))
+                  types_to_test[i], " or NULL; was ",
+                  class(args_to_test[[i]][[1]]), "."
+      ))
   }
 
   #test lengths
   for (i in seq_len(length(args_to_test))) {
     if (!length(args_to_test[[i]][[1]]) %in% c(0, 1, p_to_impute))
-    stop(paste0("
+      stop(paste0("
 The number of elements in ",
-                names(args_to_test)[i],
-                " should be 1 or match the number of elements in os_names."
-    ))
+                  names(args_to_test)[i],
+                  " should be 1 or match the number of elements in os_names."
+      ))
   }
 
   #stretch lengths if necessary
@@ -150,7 +156,8 @@ The number of elements in ",
     stop("Must provide as many true score names (ts_names) as observed score names (os_names),  or leave ts_names blank and the prefix 'true_' will be appended to os_names to name the resulting true scores")
 
   #test permissible score_types and metrics
-  if (!all(score_types %in% c("CTT", "EAP", "ML")))
+  if (!all(score_types %in% c("CTT", "EAP", "ML",
+                              "crosswalk")))
     stop("Please specify score_type from the available types for true score imputation ('CTT', 'EAP', or 'ML')")
 
   #test permissible score_types and metrics
@@ -170,7 +177,7 @@ The number of elements in ",
     is_null_var_ts = is_null_or_na(var_ts[i])
 
     if ((is_null_metric & (is_null_mean | is_null_var_ts)) |
-       (!is_null_metric & (!is_null_mean | !is_null_var_ts))) stop(paste0("Problem with variable ", i, ": Either assign a metric to each true score variable (e.g., 'T' for T scores) or assign BOTH a mean and var_ts for that variable."))
+        (!is_null_metric & (!is_null_mean | !is_null_var_ts))) stop(paste0("Problem with variable ", i, ": Either assign a metric to each true score variable (e.g., 'T' for T scores) or assign BOTH a mean and var_ts for that variable."))
     #test that EAP and ML scoring have se_names
     if (score_types[i] %in% c("EAP", "ML")) {
       is_null_sename = is.null(se_names[i]) | is.na(se_names[i])
@@ -179,13 +186,24 @@ The number of elements in ",
       #test that CTT have reliability
       is_null_reliability = is.null(reliability[i]) | is.na(reliability[i])
       if (is_null_reliability) stop(paste0("Problem with variable ", i, ": Each observed score (os_name) based on CTT scoring must include a corresponding estimate of reliability."))
+    } else if(score_types[i] == 'crosswalk'){
+      #test that crosswalk have linked-observed correlations
+      is_null_linked_obs_cor = is.null(linked_obs_cor[i]) | is.na(linked_obs_cor[i])
+      if (is_null_linked_obs_cor) stop(paste0("Problem with variable ", i, ": Each observed score (os_name) based on crosswalk scoring must include a correlation between linked and observed scores."))
+      #test that crosswalk have truncation flag correlations
+      is_null_truncate = is.null(truncate[i]) | is.na(truncate[i])
+      if (is_null_truncate) stop(paste0("Problem with variable ", i, ": Each observed score (os_name) based on crosswalk scoring must include a truncate between linked and observed scores."))
     }
   }
 
   ###############
   # DATA CHECKS #
   #test that all of os_names and se_names are in data
-  missing_variables = c(os_names, se_names)[which(!c(os_names, se_names) %in% names(data))]
+  required_variables=c(os_names, se_names)
+  if(any(is.character(linked_obs_cor))){
+    required_variables=c(required_variables,linked_obs_cor[is.character(linked_obs_cor)])
+  }
+  missing_variables = required_variables[which(!required_variables %in% names(data))]
   if (length(missing_variables) > 0)
     stop(paste0("The following os_names and/or se_names were not found in the data: ",
                 paste(missing_variables, collapse = ", "), "."))
@@ -196,9 +214,9 @@ The number of elements in ",
   non_numeric_variables = names(data)[which(!sapply(data, class) %in% c("integer", "numeric"))]
   if (length(non_numeric_variables) > 0) {
     #test that all observed scores and standard errors are numeric
-    if (any(c(os_names, se_names) %in% non_numeric_variables))
+    if (any(required_variables %in% non_numeric_variables))
       stop(paste0("The following observed score and/or standard error variables are not numeric: ",
-                  paste(intersect(non_numeric_variables, c(os_names, se_names)), collapse = ", "),
+                  paste(intersect(non_numeric_variables, required_variables), collapse = ", "),
                   ". Please convert them to numeric prior to true score imputation."))
     #print warning that non-numeric variables will be ignored
     warning(paste0("The following variables are not numeric and will be ignored during imputation: ",
@@ -208,14 +226,12 @@ The number of elements in ",
 
   #####################
   # ALL DONE; PREPARE #
-  print("Preliminary checks passed for true score imputation! Building call to mice...")
-
   #blocks
   blocks = setNames(names(data), names(data))
   #method
   method = rep("pmm", ncol(data))
   #predictor_matrix
-  predictor_matrix = matrix(1, ncol(data), ncol(data)) - diag(ncol(data))
+  predictor_matrix = matrix(1, ncol(data), ncol(data))- diag(ncol(data))
   #drop non_numeric_variables
   if (length(non_numeric_variables) > 0) {
     predictor_matrix[which(names(data) %in% non_numeric_variables), ] = 0
@@ -232,6 +248,10 @@ The number of elements in ",
       blots[[ts_names[i]]]$se_name = se_names[i]
     } else if (score_types[i] == "CTT") {
       blots[[ts_names[i]]]$reliability = reliability[i]
+    }
+    if (score_types[i] == 'crosswalk'){
+      blots[[ts_names[i]]]$linked_obs_cor = linked_obs_cor[i]
+      blots[[ts_names[i]]]$truncate=truncate[i]
     }
     blots[[ts_names[i]]]$score_type = score_types[i]
     blots[[ts_names[i]]]$separated = separated[i]
@@ -250,31 +270,40 @@ The number of elements in ",
     blots[[ts_names[i]]]$mean = mean[i]
     blots[[ts_names[i]]]$var_ts = var_ts[i]
   }
-  #put into calibration list
+  #put each into named calibration list
   blots = lapply(blots, function(x)list(calibration = x))
 
   ############################
-  # ADD TS VARIABLES TO DATA #
+  # ADD TS VARIABLES TO DATA # <- if not already present
   for (n in ts_names) {
-    data[[n]] = NA
     blocks[[n]] = n
-    method = c(method, "truescore")
-    predictor_matrix = rbind(predictor_matrix, 1) #add rows of 1s; predict TS's from everything
-    if (length(non_numeric_variables) > 0) {
-      predictor_matrix[, which(names(data) %in% non_numeric_variables)] = 0 #except non-numeric variables
+    if(is.null(data[[n]])){
+      data[[n]] = NA
+      method = c(method, "truescore")
+      predictor_matrix = rbind(predictor_matrix, 1) #add rows of 1s; predict TS's from everything
+      predictor_matrix = cbind(predictor_matrix, 0) #but don't use them to predict anything
+    } else {
+      which_n=which(names(data)==n)
+      # print(which_n)
+      method[which_n] = 'truescore'
+      predictor_matrix[which_n,]=1
+      predictor_matrix[,which_n]=0
     }
   }
-  for (n in ts_names) {
-    predictor_matrix = cbind(predictor_matrix, 0) #but don't use them to predict anything
+
+  #don't use non-numeric variables for prediction anywhere
+  if (length(non_numeric_variables) > 0) {
+    predictor_matrix[, which(names(data) %in% non_numeric_variables)] = 0
   }
 
   #######
   # RUN #
   do.call(mice, c(list(data = data,
-                      method = method,
-                      blocks = blocks,
-                      blots = blots,
-                      predictorMatrix = predictor_matrix,
-                      remove.constant = F),
-                 mice_args))
+                       method = method,
+                       blocks = blocks,
+                       blots = blots,
+                       predictorMatrix = predictor_matrix,
+                       remove.constant = F,
+                       remove.collinear = F),
+                  mice_args))
 }
