@@ -1,6 +1,5 @@
-# MANSOLF: Calculate using CTT instead
 prepare_mem_param <- function(calibdata, wdata, n) {
-  # print('hi') bring in calibration parameters
+  # bring in calibration parameters
   ratio = c(calibdata$reliability)
   var_os = c(calibdata$var_os)
   var_ts = c(calibdata$var_ts)
